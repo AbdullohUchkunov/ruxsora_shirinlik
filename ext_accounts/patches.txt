@@ -1,6 +1,7 @@
-[pre_model_sync]
-# Patches added in this section will be executed before doctypes are migrated
-# Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
-
-[post_model_sync]
-# Patches added in this section will be executed after doctypes are migrated
+ext_accounts.patches.add_other_party_type
+ext_accounts.patches.update_other_party_type_to_payable
+ext_accounts.patches.add_payment_entry_fields
+ext_accounts.patches.add_other_name_field
+ext_accounts.patches.hide_custom_other_party
+ext_accounts.patches.add_rashody_party_type
+ext_accounts.patches.add_expense_account_field

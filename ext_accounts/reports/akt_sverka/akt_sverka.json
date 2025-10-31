@@ -1,0 +1,14 @@
+{
+  "doctype": "Report",
+  "name": "Akt Sverka",
+  "ref_doctype": "GL Entry",
+  "is_standard": "Yes",
+  "report_type": "Script Report",
+  "module": "Ext Accounts",
+  "owner": "Administrator",
+  "roles": [
+    {"role": "Accounts Manager"},
+    {"role": "Accounts User"},
+    {"role": "System Manager"}
+  ]
+}

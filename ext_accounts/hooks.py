@@ -7,7 +7,20 @@ app_license = "mit"
 
 # Apps
 # ------------------
+app_include_js = [
+    "/assets/ext_accounts/js/other_ext.js"
+]
 
+# override_doctype_class = {
+#     "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody"
+# }
+# override_doctype_js = {
+#     "Payment Entry": "public/js/pe_override.js",
+# }
+# override_whitelisted_methods = {
+#     "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type":
+#         "ext_accounts.overrides.payment_entry_queries.get_party_type",
+# }
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
@@ -43,6 +56,9 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
+# doctype_js = {
+#     "Payment Entry": "public/js/pe_override_full.js"
+# }
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -128,6 +144,9 @@ app_license = "mit"
 # DocType Class
 # ---------------
 # Override standard doctype classes
+# override_doctype_class = {
+#     "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody"
+# }
 
 # override_doctype_class = {
 # 	"ToDo": "custom_app.overrides.CustomToDo"
@@ -174,6 +193,14 @@ app_license = "mit"
 # Overriding Methods
 # ------------------------------
 #
+override_whitelisted_methods = {
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type": "ext_accounts.overrides.payment_entry_queries.get_party_type"
+}
+
+# override_doctype_js = {
+#     "erpnext.accounts.doctype.payment_entry.payment_entry": 
+#         "public/js/disable_core_partytype.js"
+# }
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "ext_accounts.event.get_events"
 # }
