@@ -149,8 +149,8 @@ install_bench() {
     sudo -u $FRAPPE_USER bash << EOF
 set -e
 
-# Install bench
-pip3 install frappe-bench
+# Install bench using break-system-packages (Ubuntu 24.04)
+pip3 install frappe-bench --break-system-packages
 
 # Add local bin to PATH
 echo 'export PATH=\$PATH:~/.local/bin' >> ~/.bashrc
