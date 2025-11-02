@@ -187,7 +187,7 @@ def get_data(filters):
                 "voucher_no": voucher_no,
                 "item_name": payment_info.get('description', ''),
                 "qty": None,
-                "rate": payment_info.get('account', ''),
+                "rate": None,
                 "currency": gl.currency,
                 "credit": gl.credit,
                 "debit": gl.debit,
@@ -378,6 +378,10 @@ def get_summary(data, filters):
     elif data:
         closing_balance = data[-1].get('balance', 0)
     
+    # Ostatok nachalo - Opening balance ni Credit/Debit ga bo'lish
+    opening_credit = opening_balance if opening_balance > 0 else 0
+    opening_debit = abs(opening_balance) if opening_balance < 0 else 0
+    
     # Oborot po tovar (Goods turnover)
     # Purchase Invoice - Credit (xarid)
     # Sales Invoice - Debit (sotuv)
@@ -386,12 +390,11 @@ def get_summary(data, filters):
     goods_debit = sum(flt(r.get('debit', 0)) for r in data 
                       if r.get('voucher_type') == 'Sales Invoice')
     
-    # Oborot po deneg (Money turnover)
-    # Payment Entry + Journal Entry
+    # Oborot po deneg (Money turnover) - faqat Payment Entry
     money_credit = sum(flt(r.get('credit', 0)) for r in data 
-                       if r.get('voucher_type') in ['Payment Entry', 'Journal Entry'])
+                       if r.get('voucher_type') == 'Payment Entry')
     money_debit = sum(flt(r.get('debit', 0)) for r in data 
-                      if r.get('voucher_type') in ['Payment Entry', 'Journal Entry'])
+                      if r.get('voucher_type') == 'Payment Entry')
     
     # Nachisleniya (Accruals) - faqat Journal Entry
     accruals_credit = sum(flt(r.get('credit', 0)) for r in data 
@@ -399,46 +402,60 @@ def get_summary(data, filters):
     accruals_debit = sum(flt(r.get('debit', 0)) for r in data 
                          if r.get('voucher_type') == 'Journal Entry')
     
-    # Summary qismini qaytarish
+    # Ostatok nakones - Closing balance ni Credit/Debit ga bo'lish
+    closing_credit = closing_balance if closing_balance > 0 else 0
+    closing_debit = abs(closing_balance) if closing_balance < 0 else 0
+    
+    # Summary qismini qaytarish - 2 column formatda (Credit va Debit)
     summary = [
         {
-            "label": "Opening Balance",
-            "value": f"{opening_balance:,.2f}",
-            "indicator": "blue"
+            "label": "Остаток на начало (Кредит)",
+            "value": f"{opening_credit:,.2f}",
+            "indicator": "red",
         },
-        {
-            "label": "Oborot po tovar - (Goods Turnover - Credit)",
+                {
+            "label": "Оборот по товарам (Кредит)",
             "value": f"{goods_credit:,.2f}",
             "indicator": "red"
         },
         {
-            "label": "Oborot po deneg - (Money Turnover - Credit)",
+            "label": "Оборот по деньгам (Кредит)",
             "value": f"{money_credit:,.2f}",
             "indicator": "red"
         },
         {
-            "label": "Nachisleniya - (Accruals - Credit)",
+            "label": "Начисления (Кредит)",
             "value": f"{accruals_credit:,.2f}",
             "indicator": "red"
         },
         {
-            "label": "Closing Balance",
-            "value": f"{closing_balance:,.2f}",
-            "indicator": "orange" if closing_balance < 0 else "blue"
+            "label": "Остаток на конец (Кредит)",
+            "value": f"{closing_credit:,.2f}",
+            "indicator": "red"
         },
         {
-            "label": "Oborot po tovar - (Goods Turnover - Debit)",
+            "label": "Остаток на начало (Дебет)",
+            "value": f"{opening_debit:,.2f}",
+            "indicator": "green",
+        },
+        {
+            "label": "Оборот по товарам (Дебет)",
             "value": f"{goods_debit:,.2f}",
             "indicator": "green"
         },
         {
-            "label": "Oborot po deneg - (Money Turnover - Debit)",
+            "label": "Оборот по деньгам (Дебет)",
             "value": f"{money_debit:,.2f}",
             "indicator": "green"
         },
         {
-            "label": "Nachisleniya - (Accruals - Debit)",
+            "label": "Начисления (Дебет)",
             "value": f"{accruals_debit:,.2f}",
+            "indicator": "green"
+        },
+        {
+            "label": "Остаток на конец (Дебет)",
+            "value": f"{closing_debit:,.2f}",
             "indicator": "green"
         }
     ]
