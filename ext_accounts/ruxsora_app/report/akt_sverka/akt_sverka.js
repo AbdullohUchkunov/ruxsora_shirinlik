@@ -36,5 +36,22 @@ frappe.query_reports["Akt Sverka"] = {
                 return party_type;
             }
         }
-    ]
+    ],
+    
+    "formatter": function(value, row, column, data, default_formatter) {
+        // Dollar belgisini olib tashlash
+        value = default_formatter(value, row, column, data);
+        
+        // Currency fieldlarida $ ni olib tashlash
+        if (column.fieldtype == "Currency" && value) {
+            value = value.replace(/\$/g, '');
+        }
+        
+        // Total qatorini highlight qilish
+        if (data && data.voucher_type === "Total") {
+            value = `<span style="font-weight: bold; background-color: #e3f2fd;">${value}</span>`;
+        }
+        
+        return value;
+    }
 }

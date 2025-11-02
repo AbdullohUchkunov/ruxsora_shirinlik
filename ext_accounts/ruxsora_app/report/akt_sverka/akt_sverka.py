@@ -7,7 +7,21 @@ def execute(filters=None):
 
     columns = get_columns()
     data = get_data(filters)
-    return columns, data
+    
+    # Summary hisobotini qo'shish
+    summary = get_summary(data, filters)
+    
+    return columns, data, None, None, summary
+
+
+def format_balance(value):
+    """Balance qiymatini 2 decimal bilan format qilish"""
+    return round(flt(value), 2) if value is not None else None
+
+
+def format_qty(value):
+    """Qty ni 2 decimal bilan format qilish"""
+    return round(flt(value), 2) if value is not None else None
 
 
 def get_columns():
@@ -16,12 +30,12 @@ def get_columns():
         {"label": "Ҳужжат", "fieldname": "voucher_type", "fieldtype": "Data", "width": 150},
         {"label": "Ҳужжат №", "fieldname": "voucher_no", "fieldtype": "Dynamic Link", "options": "voucher_type", "width": 120},
         {"label": "Маҳсулот номи", "fieldname": "item_name", "fieldtype": "Data", "width": 200},
-        {"label": "Миқдори", "fieldname": "qty", "fieldtype": "Float", "width": 80},
+        {"label": "Миқдори", "fieldname": "qty", "fieldtype": "Float", "precision": 2, "width": 80},
         {"label": "Нархи", "fieldname": "rate", "fieldtype": "Currency", "width": 100},
         {"label": "Валюта", "fieldname": "currency", "fieldtype": "Link", "options": "Currency", "width": 80},
         {"label": "Кредит", "fieldname": "credit", "fieldtype": "Currency", "width": 120},
         {"label": "Дебет", "fieldname": "debit", "fieldtype": "Currency", "width": 120},
-        {"label": "Қолдиқ", "fieldname": "balance", "fieldtype": "Currency", "width": 120},
+        {"label": "Қолдиқ", "fieldname": "balance", "fieldtype": "Float", "precision": 2, "width": 120},
     ]
 
 
@@ -31,14 +45,15 @@ def get_data(filters):
     party_type = filters.get("party_type")
     party = filters.get("party")
 
-    # Boshlang'ich qoldiq (до from_date)
-    opening_balance = frappe.db.sql("""
+    # Boshlang'ich qoldiq (до from_date) - faqat UZS
+    opening_balance_uzs = frappe.db.sql("""
         SELECT 
-            IFNULL(SUM(debit - credit), 0)
+            IFNULL(SUM(debit_in_account_currency - credit_in_account_currency), 0)
         FROM `tabGL Entry`
         WHERE posting_date < %s
           AND party_type = %s
           AND party = %s
+          AND account_currency = 'UZS'
     """, (from_date, party_type, party))[0][0]
 
     data = []
@@ -54,14 +69,16 @@ def get_data(filters):
         "currency": "UZS",
         "credit": 0,
         "debit": 0,
-        "balance": opening_balance
+        "balance": format_balance(opening_balance_uzs)
     })
 
-    # GL Entry'larni olish
+    # GL Entry'larni olish - barcha valyutalar
     gl_entries = frappe.db.sql("""
         SELECT 
             posting_date, voucher_type, voucher_no,
-            debit, credit, account_currency AS currency
+            debit_in_account_currency as debit, 
+            credit_in_account_currency as credit, 
+            account_currency AS currency
         FROM `tabGL Entry`
         WHERE posting_date BETWEEN %s AND %s
           AND party_type = %s
@@ -69,7 +86,7 @@ def get_data(filters):
         ORDER BY posting_date ASC, creation ASC
     """, (from_date, to_date, party_type, party), as_dict=True)
 
-    balance = opening_balance
+    balance_uzs = opening_balance_uzs  # Balance doim UZS da
 
     # Har bir GL Entry uchun detail ma'lumotlarni olish
     for gl in gl_entries:
@@ -86,23 +103,23 @@ def get_data(filters):
                 for idx, item in enumerate(items):
                     is_last_item = (idx == len(items) - 1)
                     if is_last_item:
-                        balance -= total_credit  # Purchase Invoice da credit qarz oshadi (balance kamayadi)
+                        balance_uzs -= total_credit  # Purchase Invoice da credit qarz oshadi (balance kamayadi)
                     
                     data.append({
                         "posting_date": gl.posting_date,
                         "voucher_type": voucher_type,
                         "voucher_no": voucher_no,
                         "item_name": item.get('item_name', ''),
-                        "qty": item.get('qty'),
+                        "qty": format_qty(item.get('qty')),
                         "rate": item.get('rate'),
                         "currency": item.get('currency', gl.currency),
                         "credit": item.get('credit', 0),
                         "debit": 0,
-                        "balance": balance if is_last_item else None,
+                        "balance": format_balance(balance_uzs) if is_last_item else None,
                     })
             else:
                 # Agar item topilmasa, faqat GL entry ko'rsatish
-                balance -= flt(gl.credit)
+                balance_uzs -= flt(gl.credit)
                 data.append({
                     "posting_date": gl.posting_date,
                     "voucher_type": voucher_type,
@@ -113,7 +130,7 @@ def get_data(filters):
                     "currency": gl.currency,
                     "credit": gl.credit,
                     "debit": 0,
-                    "balance": balance,
+                    "balance": format_balance(balance_uzs),
                 })
         
         # Sales Invoice uchun item details
@@ -126,22 +143,22 @@ def get_data(filters):
                 for idx, item in enumerate(items):
                     is_last_item = (idx == len(items) - 1)
                     if is_last_item:
-                        balance += total_debit  # Sales Invoice da debit qarz kamayadi (balance oshadi)
+                        balance_uzs += total_debit  # Sales Invoice da debit qarz kamayadi (balance oshadi)
                     
                     data.append({
                         "posting_date": gl.posting_date,
                         "voucher_type": voucher_type,
                         "voucher_no": voucher_no,
                         "item_name": item.get('item_name', ''),
-                        "qty": item.get('qty'),
+                        "qty": format_qty(item.get('qty')),
                         "rate": item.get('rate'),
                         "currency": item.get('currency', gl.currency),
                         "credit": 0,
                         "debit": item.get('debit', 0),
-                        "balance": balance if is_last_item else None,
+                        "balance": format_balance(balance_uzs) if is_last_item else None,
                     })
             else:
-                balance += flt(gl.debit)
+                balance_uzs += flt(gl.debit)
                 data.append({
                     "posting_date": gl.posting_date,
                     "voucher_type": voucher_type,
@@ -152,7 +169,7 @@ def get_data(filters):
                     "currency": gl.currency,
                     "credit": 0,
                     "debit": gl.debit,
-                    "balance": balance,
+                    "balance": format_balance(balance_uzs),
                 })
         
         # Payment Entry uchun
@@ -162,7 +179,7 @@ def get_data(filters):
             # Payment Entry da balance to'g'ri hisoblansin
             # Receive bo'lsa - credit (qarz kamayadi, balance oshadi)
             # Pay bo'lsa - debit (to'lov qildik, balance kamayadi)
-            balance += flt(gl.debit) - flt(gl.credit)
+            balance_uzs += flt(gl.debit) - flt(gl.credit)
             
             data.append({
                 "posting_date": gl.posting_date,
@@ -174,7 +191,7 @@ def get_data(filters):
                 "currency": gl.currency,
                 "credit": gl.credit,
                 "debit": gl.debit,
-                "balance": balance,
+                "balance": format_balance(balance_uzs),
             })
         
         # Journal Entry uchun
@@ -188,7 +205,7 @@ def get_data(filters):
                 for idx, acc in enumerate(je_accounts):
                     is_last_item = (idx == len(je_accounts) - 1)
                     if is_last_item:
-                        balance += total_debit - total_credit
+                        balance_uzs += total_debit - total_credit
                     
                     data.append({
                         "posting_date": gl.posting_date,
@@ -200,10 +217,10 @@ def get_data(filters):
                         "currency": gl.currency,
                         "credit": acc.get('credit', 0),
                         "debit": acc.get('debit', 0),
-                        "balance": balance if is_last_item else None,
+                        "balance": format_balance(balance_uzs) if is_last_item else None,
                     })
             else:
-                balance += flt(gl.debit) - flt(gl.credit)
+                balance_uzs += flt(gl.debit) - flt(gl.credit)
                 data.append({
                     "posting_date": gl.posting_date,
                     "voucher_type": voucher_type,
@@ -214,12 +231,12 @@ def get_data(filters):
                     "currency": gl.currency,
                     "credit": gl.credit,
                     "debit": gl.debit,
-                    "balance": balance,
+                    "balance": format_balance(balance_uzs),
                 })
         
         # Boshqa document type'lar uchun
         else:
-            balance += flt(gl.debit) - flt(gl.credit)
+            balance_uzs += flt(gl.debit) - flt(gl.credit)
             data.append({
                 "posting_date": gl.posting_date,
                 "voucher_type": voucher_type,
@@ -230,7 +247,7 @@ def get_data(filters):
                 "currency": gl.currency,
                 "credit": gl.credit,
                 "debit": gl.debit,
-                "balance": balance,
+                "balance": format_balance(balance_uzs),
             })
 
     # Total qatorini qo'shish
@@ -249,7 +266,7 @@ def get_data(filters):
             "currency": "",
             "credit": total_credit,
             "debit": total_debit,
-            "balance": balance,  # Oxirgi balance
+            "balance": format_balance(balance_uzs),  # Oxirgi balance UZS da
         })
 
     return data
@@ -341,3 +358,89 @@ def get_journal_entry_accounts(voucher_no, party_type, party):
     """, (voucher_no, party_type, party), as_dict=True)
     
     return accounts
+
+
+def get_summary(data, filters):
+    """
+    Summary section yaratish - table ostida ko'rsatiladigan qo'shimcha hisobotlar
+    """
+    if not data or len(data) <= 1:
+        return []
+    
+    # Opening balance
+    opening_balance = data[0].get('balance', 0) if data else 0
+    
+    # Closing balance (Total qatoridan yoki oxirgi qatordan)
+    closing_balance = 0
+    total_row = [r for r in data if r.get('voucher_type') == 'Total']
+    if total_row:
+        closing_balance = total_row[0].get('balance', 0)
+    elif data:
+        closing_balance = data[-1].get('balance', 0)
+    
+    # Oborot po tovar (Goods turnover)
+    # Purchase Invoice - Credit (xarid)
+    # Sales Invoice - Debit (sotuv)
+    goods_credit = sum(flt(r.get('credit', 0)) for r in data 
+                       if r.get('voucher_type') == 'Purchase Invoice')
+    goods_debit = sum(flt(r.get('debit', 0)) for r in data 
+                      if r.get('voucher_type') == 'Sales Invoice')
+    
+    # Oborot po deneg (Money turnover)
+    # Payment Entry + Journal Entry
+    money_credit = sum(flt(r.get('credit', 0)) for r in data 
+                       if r.get('voucher_type') in ['Payment Entry', 'Journal Entry'])
+    money_debit = sum(flt(r.get('debit', 0)) for r in data 
+                      if r.get('voucher_type') in ['Payment Entry', 'Journal Entry'])
+    
+    # Nachisleniya (Accruals) - faqat Journal Entry
+    accruals_credit = sum(flt(r.get('credit', 0)) for r in data 
+                          if r.get('voucher_type') == 'Journal Entry')
+    accruals_debit = sum(flt(r.get('debit', 0)) for r in data 
+                         if r.get('voucher_type') == 'Journal Entry')
+    
+    # Summary qismini qaytarish
+    summary = [
+        {
+            "label": "Opening Balance",
+            "value": f"{opening_balance:,.2f}",
+            "indicator": "blue"
+        },
+        {
+            "label": "Oborot po tovar - (Goods Turnover - Credit)",
+            "value": f"{goods_credit:,.2f}",
+            "indicator": "orange"
+        },
+        {
+            "label": "Oborot po deneg - (Money Turnover - Credit)",
+            "value": f"{money_credit:,.2f}",
+            "indicator": "orange"
+        },
+        {
+            "label": "Nachisleniya - (Accruals - Credit)",
+            "value": f"{accruals_credit:,.2f}",
+            "indicator": "orange"
+        },
+        {
+            "label": "Closing Balance",
+            "value": f"{closing_balance:,.2f}",
+            "indicator": "red" if closing_balance < 0 else "blue"
+        },
+        {
+            "label": "Oborot po tovar - (Goods Turnover - Debit)",
+            "value": f"{goods_debit:,.2f}",
+            "indicator": "green"
+        },
+        {
+            "label": "Oborot po deneg - (Money Turnover - Debit)",
+            "value": f"{money_debit:,.2f}",
+            "indicator": "green"
+        },
+        {
+            "label": "Nachisleniya - (Accruals - Debit)",
+            "value": f"{accruals_debit:,.2f}",
+            "indicator": "green"
+        }
+    ]
+    
+    return summary
