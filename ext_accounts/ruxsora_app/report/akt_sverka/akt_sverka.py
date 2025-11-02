@@ -8,10 +8,10 @@ def execute(filters=None):
     columns = get_columns()
     data = get_data(filters)
     
-    # Summary hisobotini qo'shish
-    summary = get_summary(data, filters)
+    # Summary HTML table yaratish
+    summary_html = get_summary_html(data, filters)
     
-    return columns, data, None, None, summary
+    return columns, data, summary_html, None, None
 
 
 def format_balance(value):
@@ -364,12 +364,12 @@ def get_journal_entry_accounts(voucher_no, party_type, party):
     return accounts
 
 
-def get_summary(data, filters):
+def get_summary_html(data, filters):
     """
-    Summary section yaratish - table ostida ko'rsatiladigan qo'shimcha hisobotlar
+    Summary HTML table yaratish - 2 qatorda Credit va Debit parallel
     """
     if not data or len(data) <= 1:
-        return []
+        return ""
     
     # Opening balance
     opening_balance = data[0].get('balance', 0) if data else 0
@@ -387,81 +387,67 @@ def get_summary(data, filters):
     opening_debit = abs(opening_balance) if opening_balance < 0 else 0
     
     # Oborot po tovar (Goods turnover)
-    # Purchase Invoice - Credit (xarid)
-    # Sales Invoice - Debit (sotuv)
     goods_credit = sum(flt(r.get('credit', 0)) for r in data 
                        if r.get('voucher_type') == 'Purchase Invoice')
     goods_debit = sum(flt(r.get('debit', 0)) for r in data 
                       if r.get('voucher_type') == 'Sales Invoice')
     
-    # Oborot po deneg (Money turnover) - faqat Payment Entry
+    # Oborot po deneg (Money turnover)
     money_credit = sum(flt(r.get('credit', 0)) for r in data 
                        if r.get('voucher_type') == 'Payment Entry')
     money_debit = sum(flt(r.get('debit', 0)) for r in data 
                       if r.get('voucher_type') == 'Payment Entry')
     
-    # Nachisleniya (Accruals) - faqat Journal Entry
+    # Nachisleniya (Accruals)
     accruals_credit = sum(flt(r.get('credit', 0)) for r in data 
                           if r.get('voucher_type') == 'Journal Entry')
     accruals_debit = sum(flt(r.get('debit', 0)) for r in data 
                          if r.get('voucher_type') == 'Journal Entry')
     
-    # Ostatok nakones - Closing balance ni Credit/Debit ga bo'lish
+    # Ostatok nakones
     closing_credit = closing_balance if closing_balance > 0 else 0
     closing_debit = abs(closing_balance) if closing_balance < 0 else 0
     
-    # Summary qismini qaytarish - 2 column formatda (Credit va Debit)
-    summary = [
-        {
-            "label": "Остаток на начало (Кредит)",
-            "value": f"{opening_credit:,.2f}",
-            "indicator": "red",
-        },
-                {
-            "label": "Оборот по товарам (Кредит)",
-            "value": f"{goods_credit:,.2f}",
-            "indicator": "red"
-        },
-        {
-            "label": "Оборот по деньгам (Кредит)",
-            "value": f"{money_credit:,.2f}",
-            "indicator": "red"
-        },
-        {
-            "label": "Начисления (Кредит)",
-            "value": f"{accruals_credit:,.2f}",
-            "indicator": "red"
-        },
-        {
-            "label": "Остаток на конец (Кредит)",
-            "value": f"{closing_credit:,.2f}",
-            "indicator": "red"
-        },
-        {
-            "label": "Остаток на начало (Дебет)",
-            "value": f"{opening_debit:,.2f}",
-            "indicator": "green",
-        },
-        {
-            "label": "Оборот по товарам (Дебет)",
-            "value": f"{goods_debit:,.2f}",
-            "indicator": "green"
-        },
-        {
-            "label": "Оборот по деньгам (Дебет)",
-            "value": f"{money_debit:,.2f}",
-            "indicator": "green"
-        },
-        {
-            "label": "Начисления (Дебет)",
-            "value": f"{accruals_debit:,.2f}",
-            "indicator": "green"
-        },
-        {
-            "label": "Остаток на конец (Дебет)",
-            "value": f"{closing_debit:,.2f}",
-            "indicator": "green"
-        }
-    ]
+    # HTML table yaratish
+    html = f"""
+    <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+            <thead>
+                <tr style="background-color: #f0f0f0;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd; width: 40%;"></th>
+                    <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 30%; color: #d32f2f; font-weight: bold;">Кредит (Credit)</th>
+                    <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 30%; color: #388e3c; font-weight: bold;">Дебет (Debit)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">Остаток на начало</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #d32f2f;">{opening_credit:,.2f}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #388e3c;">{opening_debit:,.2f}</td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">Оборот по товарам</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #d32f2f;">{goods_credit:,.2f}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #388e3c;">{goods_debit:,.2f}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">Оборот по деньгам</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #d32f2f;">{money_credit:,.2f}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #388e3c;">{money_debit:,.2f}</td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">Начисления</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #d32f2f;">{accruals_credit:,.2f}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; color: #388e3c;">{accruals_debit:,.2f}</td>
+                </tr>
+                <tr style="background-color: #e3f2fd; font-weight: bold;">
+                    <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Остаток на конец</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #d32f2f; font-weight: bold;">{closing_credit:,.2f}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #388e3c; font-weight: bold;">{closing_debit:,.2f}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
     
-    return summary
+    return html
