@@ -409,22 +409,22 @@ def get_summary(data, filters):
         {
             "label": "Oborot po tovar - (Goods Turnover - Credit)",
             "value": f"{goods_credit:,.2f}",
-            "indicator": "orange"
+            "indicator": "red"
         },
         {
             "label": "Oborot po deneg - (Money Turnover - Credit)",
             "value": f"{money_credit:,.2f}",
-            "indicator": "orange"
+            "indicator": "red"
         },
         {
             "label": "Nachisleniya - (Accruals - Credit)",
             "value": f"{accruals_credit:,.2f}",
-            "indicator": "orange"
+            "indicator": "red"
         },
         {
             "label": "Closing Balance",
             "value": f"{closing_balance:,.2f}",
-            "indicator": "red" if closing_balance < 0 else "blue"
+            "indicator": "orange" if closing_balance < 0 else "blue"
         },
         {
             "label": "Oborot po tovar - (Goods Turnover - Debit)",
