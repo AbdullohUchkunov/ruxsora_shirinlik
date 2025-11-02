@@ -45,15 +45,16 @@ def get_data(filters):
     party_type = filters.get("party_type")
     party = filters.get("party")
 
-    # Boshlang'ich qoldiq (до from_date) - faqat UZS
+    # Boshlang'ich qoldiq (до from_date) - faqat UZS, cancelled'siz
     opening_balance_uzs = frappe.db.sql("""
         SELECT 
-            IFNULL(SUM(debit_in_account_currency - credit_in_account_currency), 0)
+            IFNULL(SUM(credit_in_account_currency - debit_in_account_currency), 0)
         FROM `tabGL Entry`
         WHERE posting_date < %s
           AND party_type = %s
           AND party = %s
           AND account_currency = 'UZS'
+          AND is_cancelled = 0
     """, (from_date, party_type, party))[0][0]
 
     data = []
@@ -72,18 +73,21 @@ def get_data(filters):
         "balance": format_balance(opening_balance_uzs)
     })
 
-    # GL Entry'larni olish - barcha valyutalar
+    # GL Entry'larni olish - barcha valyutalar, cancelled'larni olib tashlash
     gl_entries = frappe.db.sql("""
         SELECT 
-            posting_date, voucher_type, voucher_no,
-            debit_in_account_currency as debit, 
-            credit_in_account_currency as credit, 
-            account_currency AS currency
-        FROM `tabGL Entry`
-        WHERE posting_date BETWEEN %s AND %s
-          AND party_type = %s
-          AND party = %s
-        ORDER BY posting_date ASC, creation ASC
+            gl.posting_date, 
+            gl.voucher_type, 
+            gl.voucher_no,
+            gl.debit_in_account_currency as debit, 
+            gl.credit_in_account_currency as credit, 
+            gl.account_currency AS currency
+        FROM `tabGL Entry` gl
+        WHERE gl.posting_date BETWEEN %s AND %s
+          AND gl.party_type = %s
+          AND gl.party = %s
+          AND gl.is_cancelled = 0
+        ORDER BY gl.posting_date ASC, gl.creation ASC
     """, (from_date, to_date, party_type, party), as_dict=True)
 
     balance_uzs = opening_balance_uzs  # Balance doim UZS da
@@ -327,7 +331,7 @@ def get_payment_entry_info(voucher_no):
         if p.payment_type == 'Pay':
             return {
                 'description': 'Pay',
-                'account': p.paid_from
+                'account': p.paid_from,
             }
         elif p.payment_type == 'Receive':
             return {
