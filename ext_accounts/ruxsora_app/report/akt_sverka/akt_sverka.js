@@ -17,16 +17,24 @@ frappe.query_reports["Akt Sverka"] = {
         {
             "fieldname": "party_type",
             "label": __("Контрагент тури"),
-            "fieldtype": "Link",
-            "options": "Party Type",
+            "fieldtype": "Select",
+            "options": "\nCustomer\nSupplier\nEmployee\nOther",
+            "default": "Customer",
             "reqd": 1
         },
         {
             "fieldname": "party",
             "label": __("Контрагент"),
             "fieldtype": "Dynamic Link",
-            "options": "party_type",
-            "reqd": 1
+            "reqd": 1,
+            "get_options": function() {
+                var party_type = frappe.query_report.get_filter_value('party_type');
+                var party = frappe.query_report.get_filter_value('party');
+                if(party && !party_type) {
+                    frappe.throw(__("Please select Party Type first"));
+                }
+                return party_type;
+            }
         }
     ]
 }
