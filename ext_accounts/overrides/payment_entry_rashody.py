@@ -79,10 +79,17 @@ class PaymentEntryRashody(PaymentEntry):
             if self.party and frappe.db.exists("Account", self.party):
                 self.party_name = frappe.db.get_value("Account", self.party, "account_name")
             
+            # Set party_account_currency - required for set_remarks()
             if self.payment_type == "Pay":
+                # Pay: Money goes from bank/cash to expense account
+                # Party account is the expense account (paid_to)
+                self.party_account_currency = self.paid_to_account_currency if hasattr(self, 'paid_to_account_currency') else self.company_currency
                 self.received_amount = 0
                 self.base_received_amount = 0
             elif self.payment_type == "Receive":
+                # Receive: Money comes from expense account to bank/cash
+                # Party account is the expense account (paid_from)
+                self.party_account_currency = self.paid_from_account_currency if hasattr(self, 'paid_from_account_currency') else self.company_currency
                 self.paid_amount = 0
                 self.base_paid_amount = 0
             
