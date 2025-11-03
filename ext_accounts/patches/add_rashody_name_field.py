@@ -4,7 +4,8 @@ def execute():
     """
     Add rashody_name field to all existing Rashody records
     """
-    frappe.reload_doctype("Rashody")
+    # Reload DocType with module name
+    frappe.reload_doc("ruxsora_app", "doctype", "rashody")
     
     # Update all existing Rashody records
     rashody_records = frappe.get_all("Rashody", fields=["name", "account_name"])
