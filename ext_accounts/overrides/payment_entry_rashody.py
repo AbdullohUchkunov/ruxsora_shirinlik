@@ -84,18 +84,23 @@ class PaymentEntryRashody(PaymentEntry):
                 # Pay: Money goes from bank/cash to expense account
                 # Party account is the expense account (paid_to)
                 self.party_account_currency = self.paid_to_account_currency if hasattr(self, 'paid_to_account_currency') else self.company_currency
-                self.received_amount = 0
-                self.base_received_amount = 0
+                # DON'T set received_amount here - let user fill paid_amount
+                # received_amount should remain as entered or 0 by default
             elif self.payment_type == "Receive":
                 # Receive: Money comes from expense account to bank/cash
                 # Party account is the expense account (paid_from)
                 self.party_account_currency = self.paid_from_account_currency if hasattr(self, 'paid_from_account_currency') else self.company_currency
-                self.paid_amount = 0
-                self.base_paid_amount = 0
+                # DON'T set paid_amount here - let user fill received_amount
+                # paid_amount should remain as entered or 0 by default
             
             self.total_allocated_amount = 0
             self.base_total_allocated_amount = 0
-            self.unallocated_amount = flt(self.paid_amount) if self.payment_type == "Pay" else flt(self.received_amount)
+            
+            # Calculate unallocated amount based on payment type
+            if self.payment_type == "Pay":
+                self.unallocated_amount = flt(self.paid_amount)
+            else:
+                self.unallocated_amount = flt(self.received_amount)
             
             return
         
@@ -107,34 +112,82 @@ class PaymentEntryRashody(PaymentEntry):
             company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
             
             if self.payment_type == "Pay":
-                self.received_amount = 0
-                self.base_received_amount = 0
+                # Pay: User enters paid_amount, system calculates received_amount
+                # paid_from (Bank/Cash) → paid_to (Expense Account)
                 
-                if self.paid_from:
+                if self.paid_from and self.paid_to:
                     paid_from_acc = frappe.get_doc("Account", self.paid_from)
-                    paid_from_currency = paid_from_acc.account_currency or company_currency
+                    paid_to_acc = frappe.get_doc("Account", self.paid_to)
                     
+                    paid_from_currency = paid_from_acc.account_currency or company_currency
+                    paid_to_currency = paid_to_acc.account_currency or company_currency
+                    
+                    # Calculate base_paid_amount (in company currency)
                     if paid_from_currency != company_currency:
-                        exchange_rate = get_exchange_rate(paid_from_currency, company_currency, self.posting_date)
-                        self.base_paid_amount = flt(self.paid_amount) * exchange_rate
+                        source_exchange_rate = get_exchange_rate(paid_from_currency, company_currency, self.posting_date)
+                        self.source_exchange_rate = source_exchange_rate
+                        self.base_paid_amount = flt(self.paid_amount) * source_exchange_rate
                     else:
+                        self.source_exchange_rate = 1.0
                         self.base_paid_amount = flt(self.paid_amount)
+                    
+                    # Calculate received_amount (in paid_to currency)
+                    if paid_from_currency == paid_to_currency:
+                        # Same currency: received = paid
+                        self.received_amount = self.paid_amount
+                        self.base_received_amount = self.base_paid_amount
+                        self.target_exchange_rate = self.source_exchange_rate
+                    else:
+                        # Different currencies: convert base_paid_amount to paid_to currency
+                        if paid_to_currency != company_currency:
+                            target_exchange_rate = get_exchange_rate(paid_to_currency, company_currency, self.posting_date)
+                            self.target_exchange_rate = target_exchange_rate
+                            self.received_amount = flt(self.base_paid_amount) / target_exchange_rate
+                        else:
+                            self.target_exchange_rate = 1.0
+                            self.received_amount = self.base_paid_amount
+                        
+                        self.base_received_amount = self.base_paid_amount
                 
                 self.unallocated_amount = flt(self.paid_amount)
                 
             elif self.payment_type == "Receive":
-                self.paid_amount = 0
-                self.base_paid_amount = 0
+                # Receive: User enters received_amount, system calculates paid_amount
+                # paid_from (Expense Account) → paid_to (Bank/Cash)
                 
-                if self.paid_to:
+                if self.paid_from and self.paid_to:
+                    paid_from_acc = frappe.get_doc("Account", self.paid_from)
                     paid_to_acc = frappe.get_doc("Account", self.paid_to)
+                    
+                    paid_from_currency = paid_from_acc.account_currency or company_currency
                     paid_to_currency = paid_to_acc.account_currency or company_currency
                     
+                    # Calculate base_received_amount (in company currency)
                     if paid_to_currency != company_currency:
-                        exchange_rate = get_exchange_rate(paid_to_currency, company_currency, self.posting_date)
-                        self.base_received_amount = flt(self.received_amount) * exchange_rate
+                        target_exchange_rate = get_exchange_rate(paid_to_currency, company_currency, self.posting_date)
+                        self.target_exchange_rate = target_exchange_rate
+                        self.base_received_amount = flt(self.received_amount) * target_exchange_rate
                     else:
+                        self.target_exchange_rate = 1.0
                         self.base_received_amount = flt(self.received_amount)
+                    
+                    # Calculate paid_amount (in paid_from currency)
+                    if paid_from_currency == paid_to_currency:
+                        # Same currency: paid = received
+                        self.paid_amount = self.received_amount
+                        self.base_paid_amount = self.base_received_amount
+                        self.source_exchange_rate = self.target_exchange_rate
+                    else:
+                        # Different currencies: convert base_received_amount to paid_from currency
+                        if paid_from_currency != company_currency:
+                            source_exchange_rate = get_exchange_rate(paid_from_currency, company_currency, self.posting_date)
+                            self.source_exchange_rate = source_exchange_rate
+                            self.paid_amount = flt(self.base_received_amount) / source_exchange_rate
+                        else:
+                            self.source_exchange_rate = 1.0
+                            self.paid_amount = self.base_received_amount
+                        
+                        self.base_paid_amount = self.base_received_amount
                 
                 self.unallocated_amount = flt(self.received_amount)
             
