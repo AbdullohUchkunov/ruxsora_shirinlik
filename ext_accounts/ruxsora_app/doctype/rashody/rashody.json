@@ -8,6 +8,7 @@
  "field_order": [
   "expense_account",
   "account_name",
+  "rashody_name",
   "company"
  ],
  "fields": [
@@ -25,6 +26,14 @@
    "fieldname": "account_name",
    "fieldtype": "Data",
    "label": "Account Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "expense_account.account_name",
+   "fieldname": "rashody_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rashody Name",
    "read_only": 1
   },
   {
