@@ -1,10 +1,10 @@
 // ext_accounts/public/js/pe_override_full.js
-// Payment Entry override for Rashody party type
+// Payment Entry override for Расходы party type
 console.log("[PE Override] Loaded - Variant 3 (JavaScript Bypass)");
 
 frappe.ui.form.on("Payment Entry", {
   setup(frm) {
-    // Protect Rashody from being cleared by ERPNext core
+    // Protect Расходы from being cleared by ERPNext core
     protect_rashody_field(frm);
     
     // Setup queries
@@ -15,8 +15,8 @@ frappe.ui.form.on("Payment Entry", {
     });
 
     frm.set_query("party", function () {
-      if (frm.doc.party_type === "Rashody") {
-        // For Rashody, show 5200 expense accounts directly
+      if (frm.doc.party_type === "Расходы") {
+        // For Расходы, show 5200 expense accounts directly
         return {
           query: "ext_accounts.overrides.payment_entry_queries.get_party_for_rashody",
           filters: {
@@ -64,11 +64,11 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   party_type(frm) {
-    // Block ERPNext from clearing Rashody
-    if (frm.doc.party_type === "Rashody") {
+    // Block ERPNext from clearing Расходы
+    if (frm.doc.party_type === "Расходы") {
       setTimeout(() => {
-        if (!frm.doc.party_type || frm.doc.party_type !== "Rashody") {
-          frm.set_value("party_type", "Rashody");
+        if (!frm.doc.party_type || frm.doc.party_type !== "Расходы") {
+          frm.set_value("party_type", "Расходы");
         }
         toggle_rashody_fields(frm);
         frappe.show_alert({
@@ -82,7 +82,7 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   party(frm) {
-    if (frm.doc.party_type === "Rashody" && frm.doc.party) {
+    if (frm.doc.party_type === "Расходы" && frm.doc.party) {
       // Show selected account info
       frappe.db.get_value("Account", frm.doc.party, ["account_name", "account_currency"], function (r) {
         if (r) {
@@ -96,7 +96,7 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   validate(frm) {
-    if (frm.doc.party_type === "Rashody") {
+    if (frm.doc.party_type === "Расходы") {
       if (!frm.doc.party) {
         frappe.throw(__("Please select an Expense Account in Party field"));
       }
@@ -115,7 +115,7 @@ frappe.ui.form.on("Payment Entry", {
 });
 
 function toggle_rashody_fields(frm) {
-  const is_rashody = frm.doc.party_type === "Rashody";
+  const is_rashody = frm.doc.party_type === "Расходы";
 
   // Party field always visible, but label changes
   frm.toggle_display("party", true);
@@ -129,21 +129,21 @@ function toggle_rashody_fields(frm) {
     frm.set_df_property("party", "description", "");
   }
 
-  // Hide reference and advance sections for Rashody
+  // Hide reference and advance sections for Расходы
   frm.toggle_display("references_section", !is_rashody);
   frm.toggle_display("party_balance", !is_rashody);
   frm.toggle_display("set_advances", !is_rashody);
   frm.toggle_display("advances_section", !is_rashody);
   frm.toggle_display("party_account", !is_rashody);
   
-  // Clear references for Rashody
+  // Clear references for Расходы
   if (is_rashody && frm.doc.references && frm.doc.references.length) {
     frm.clear_table("references");
     frm.refresh_field("references");
   }
 }
 
-// Critical: Protect Rashody from ERPNext core validation
+// Critical: Protect Расходы from ERPNext core validation
 function protect_rashody_field(frm) {
   if (frm._rashody_protected) return;
   
@@ -161,8 +161,8 @@ function protect_rashody_field(frm) {
     // Prevent ERPNext from validating party_type against DocType
     const original_validate = party_type_field.validate;
     party_type_field.validate = function(value) {
-      if (value === "Rashody") {
-        // Skip validation for Rashody
+      if (value === "Расходы") {
+        // Skip validation for Расходы
         return value;
       }
       if (original_validate) {

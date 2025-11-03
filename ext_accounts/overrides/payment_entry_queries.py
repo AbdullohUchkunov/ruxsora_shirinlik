@@ -3,8 +3,12 @@ import frappe
 
 @frappe.whitelist()
 def get_party_type(doctype, txt, searchfield, start, page_len, filters):
-    # Faqat standart turlar (Расходы YO'Q)
-    allowed = ["Customer", "Supplier", "Employee", "Shareholder", "Other"]
+    """
+    Payment Entry uchun Party Type query.
+    Pay va Receive da Rashody ko'rinadi.
+    """
+    # Barcha ruxsat etilgan turlar (Rashody ham kiradi)
+    allowed = ["Customer", "Supplier", "Employee", "Shareholder", "Other", "Rashody"]
 
     txt = txt or ""
     params = []
@@ -19,7 +23,12 @@ def get_party_type(doctype, txt, searchfield, start, page_len, filters):
     params.extend([page_len, start])
 
     query = f"""
-        SELECT name as value, name as label
+        SELECT 
+            name as value, 
+            CASE 
+                WHEN name = 'Rashody' THEN 'Расходы'
+                ELSE name 
+            END as label
         FROM `tabParty Type`
         WHERE name IN ({in_clause})
         {search_conditions}
@@ -30,9 +39,45 @@ def get_party_type(doctype, txt, searchfield, start, page_len, filters):
                 WHEN name='Employee' THEN 3
                 WHEN name='Shareholder' THEN 4
                 WHEN name='Other' THEN 5
-                ELSE 6
+                WHEN name='Rashody' THEN 6
+                ELSE 7
             END, name
         LIMIT %s OFFSET %s
     """
     res = frappe.db.sql(query, params, as_dict=1)
     return [[d.value, d.label] for d in res]
+
+
+@frappe.whitelist()
+def get_party_for_rashody(doctype, txt, searchfield, start, page_len, filters):
+    """
+    Party Type = Rashody bo'lganda, Party fieldida Rashody recordlarni qaytaradi.
+    Barcha 5200 child accounts (limitni 999 ga oshiramiz).
+    """
+    company = filters.get("company") if filters else None
+    if not company:
+        # Default company
+        company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+    
+    txt = txt or ""
+    
+    # Rashody DocType dan barcha recordlarni olish
+    # page_len ni 999 ga oshiramiz (barcha recordlarni ko'rsatish uchun)
+    max_results = 999
+    
+    query = """
+        SELECT 
+            expense_account as value,
+            CONCAT(expense_account, ' - ', account_name) as description
+        FROM `tabRashody`
+        WHERE company = %s
+        AND (expense_account LIKE %s OR account_name LIKE %s)
+        ORDER BY expense_account
+        LIMIT %s OFFSET %s
+    """
+    
+    params = [company, f"%{txt}%", f"%{txt}%", max_results, start]
+    res = frappe.db.sql(query, params, as_dict=1)
+    
+    # Return format: [[value, description], ...]
+    return [[d.value, d.description] for d in res]

@@ -11,16 +11,21 @@ app_include_js = [
     "/assets/ext_accounts/js/other_ext.js"
 ]
 
-# override_doctype_class = {
-#     "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody"
-# }
-# override_doctype_js = {
-#     "Payment Entry": "public/js/pe_override.js",
-# }
-# override_whitelisted_methods = {
-#     "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type":
-#         "ext_accounts.overrides.payment_entry_queries.get_party_type",
-# }
+# DocType overrides
+override_doctype_class = {
+    "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody"
+}
+
+# DocType JS overrides
+doctype_js = {
+    "Payment Entry": "public/js/pe_override_full.js"
+}
+
+# Whitelisted method overrides
+override_whitelisted_methods = {
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type":
+        "ext_accounts.overrides.payment_entry_queries.get_party_type",
+}
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
@@ -156,13 +161,13 @@ app_include_js = [
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    "Account": {
+        "after_insert": "ext_accounts.overrides.account_hooks.after_insert",
+        "on_update": "ext_accounts.overrides.account_hooks.on_update",
+        "on_trash": "ext_accounts.overrides.account_hooks.on_trash"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
@@ -192,9 +197,9 @@ app_include_js = [
 
 # Overriding Methods
 # ------------------------------
-#
 override_whitelisted_methods = {
-    "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type": "ext_accounts.overrides.payment_entry_queries.get_party_type"
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type":
+        "ext_accounts.overrides.payment_entry_queries.get_party_type",
 }
 
 # override_doctype_js = {
