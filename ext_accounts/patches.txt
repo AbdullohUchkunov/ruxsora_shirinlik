@@ -5,4 +5,3 @@ ext_accounts.patches.add_other_name_field
 ext_accounts.patches.hide_custom_other_party
 ext_accounts.patches.add_rashody_party_type
 ext_accounts.patches.add_expense_account_field
-ext_accounts.patches.create_rashody_records
