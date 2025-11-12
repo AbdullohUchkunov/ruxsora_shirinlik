@@ -8,7 +8,12 @@ app_license = "mit"
 # Apps
 # ------------------
 app_include_js = [
-    "/assets/ext_accounts/js/other_ext.js"
+    "/assets/ext_accounts/js/other_ext.js",
+    "/assets/ext_accounts/js/purchase_invoice.js",
+	"/assets/ext_accounts/js/purchase_receipt.js",
+	"/assets/ext_accounts/js/sales_invoice.js",
+	"/assets/ext_accounts/js/delivery_note.js",
+	"/assets/ext_accounts/js/payment_entry.js"
 ]
 
 # DocType overrides
@@ -166,7 +171,27 @@ doc_events = {
         "after_insert": "ext_accounts.overrides.account_hooks.after_insert",
         "on_update": "ext_accounts.overrides.account_hooks.on_update",
         "on_trash": "ext_accounts.overrides.account_hooks.on_trash"
-    }
+    },
+    	"Purchase Invoice": {
+		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+	},
+	"Purchase Receipt": {
+		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+	},
+	"Sales Invoice": {
+		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+	},
+	"Delivery Note": {
+		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+	},
+	"Payment Entry": {
+		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+	}
 }
 
 # Scheduled Tasks
