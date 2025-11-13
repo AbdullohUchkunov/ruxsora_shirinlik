@@ -34,19 +34,19 @@ class PartyFinancialDefaults(Document):
 	
 	def check_duplicate(self):
 		"""Check if a record already exists for this party and company"""
-		if not self.is_new():
-			return
-		
-		existing = frappe.db.exists({
-			'doctype': 'Party Financial Defaults',
-			'party': self.party,
-			'party_type': self.party_type,
-			'company': self.company,
-			'name': ['!=', self.name]
-		})
-		
+		existing = frappe.db.get_value(
+			'Party Financial Defaults',
+			{
+				'party': self.party,
+				'party_type': self.party_type,
+				'company': self.company,
+				'name': ['!=', self.name]
+			},
+			'name'
+		)
+
 		if existing:
-			frappe.throw(f'Party Financial Defaults already exists for {self.party} in {self.company}')
+			frappe.throw(f'Party Financial Defaults already exists for {self.party} in {self.company}: {existing}')
 
 
 @frappe.whitelist()
