@@ -1,13 +1,12 @@
 # ==============================================================================
-# FRAPPE APP PRODUCTION DEPLOYMENT WORKFLOW (SENIOR EDITION)
+# FRAPPE APP PRODUCTION DEPLOYMENT WORKFLOW (FIXED VERSION)
 # ==============================================================================
 # Author: Senior DevOps/Developer
 # Description: Bu workflow mavjud Frappe ilovasini xavfsiz yangilaydi.
 #
-# TUZATILGAN MUAMMO:
-# - GitHub Repo nomi: "ruxsora_shirinlik"
-# - Serverdagi Papka: "ext_accounts"
-# - Yechim: APP_NAME o'zgaruvchisi "ext_accounts" ga qat'iy biriktirildi.
+# TUZATISH (Fix):
+# - Secret validatsiyasidagi syntax xatolik tuzatildi.
+# - App nomi "ext_accounts" ga qat'iy biriktirilgan.
 # ==============================================================================
 
 name: Deploy to Production
@@ -36,7 +35,7 @@ jobs:
   deploy:
     name: Production Server Update
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Agar 15 daqiqada tugamasa, bekor qilinadi (xavfsizlik)
+    timeout-minutes: 15
 
     steps:
       # ------------------------------------------------------------------------
@@ -45,7 +44,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Versiyalar tarixi to'liq olinadi
+          fetch-depth: 0
 
       # ------------------------------------------------------------------------
       # 2. SSH KALITLARINI SOZLASH
@@ -58,24 +57,24 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
       # ------------------------------------------------------------------------
-      # 3. SIRLI MA'LUMOTLARNI (SECRETS) VALIDATSIYA QILISH
+      # 3. SIRLI MA'LUMOTLARNI (SECRETS) VALIDATSIYA QILISH (TUZATILDI)
       # ------------------------------------------------------------------------
       - name: Validate Secrets
         run: |
-          REQUIRED_SECRETS=("SERVER_IP" "SITE_NAME" "SSH_PRIVATE_KEY")
-          for secret in "${REQUIRED_SECRETS[@]}"; do
-            if [ -z "${!secret}" ] && [ -z "${{ secrets[secret] }}" ]; then
-              # Izoh: GitHub Actionsda secretlarni bash loopda to'g'ridan-to'g'ri tekshirish qiyin,
-              # shuning uchun oddiy manual tekshiruv tavsiya etiladi.
-              echo "Checking configuration..."
-            fi
-          done
-          
-          if [ -z "${{ secrets.SERVER_IP }}" ]; then echo "❌ SERVER_IP missing"; exit 1; fi
-          if [ -z "${{ secrets.SITE_NAME }}" ]; then echo "❌ SITE_NAME missing"; exit 1; fi
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then echo "❌ SSH_PRIVATE_KEY missing"; exit 1; fi
-          
-          echo "✅ Configuration validated successfully."
+          # Oddiy va ishonchli tekshiruv
+          if [ -z "${{ secrets.SERVER_IP }}" ]; then
+            echo "❌ ERROR: SERVER_IP secret not set!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SITE_NAME }}" ]; then
+            echo "❌ ERROR: SITE_NAME secret not set!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ ERROR: SSH_PRIVATE_KEY secret not set!"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
 
       # ------------------------------------------------------------------------
       # 4. DEPLOYMENT STATUSINI TEKSHIRISH
@@ -92,29 +91,26 @@ jobs:
           fi
 
       # ------------------------------------------------------------------------
-      # 5. ASOSIY UPDATE JARAYONI (ENG MUHIM QISM)
+      # 5. ASOSIY UPDATE JARAYONI
       # ------------------------------------------------------------------------
       - name: Execute Server Update
         if: steps.check_deploy.outputs.deployment_exists == 'true'
         run: |
           echo "🚀 Starting deployment for app: ${{ env.APP_NAME }}"
           
-          # SSH sessiyasini boshlaymiz.
-          # Biz ENV o'zgaruvchilarni to'g'ridan-to'g'ri inject qilamiz.
-          
           ssh root@${{ secrets.SERVER_IP }} << ENDSSH
-            set -e  # Xatolik bo'lsa darhol to'xtatish
+            set -e
             
             echo "🔒 Logged in as root. Switching to frappe user..."
             
-            # Frappe useriga o'tamiz va buyruqlarni bajaramiz
+            # Frappe useriga o'tamiz
             su - ${FRAPPE_USER} << 'FRAPPE_EOF'
               set -e
               
               # O'zgaruvchilarni qabul qilish
               SITE_NAME="${{ secrets.SITE_NAME }}"
               BENCH_PATH="${{ env.BENCH_PATH }}"
-              APP_DIR="${{ env.APP_NAME }}"  # <-- "ext_accounts" shu yerga keladi
+              APP_DIR="${{ env.APP_NAME }}"  # "ext_accounts"
               GIT_BRANCH="${{ github.ref_name }}"
               
               echo "📂 Navigating to bench: \${BENCH_PATH}"
@@ -130,7 +126,7 @@ jobs:
               echo "🔄 Updating source code for: \${APP_DIR}"
               cd apps/\${APP_DIR}
               
-              # Remote nomini aniqlash (origin yoki upstream)
+              # Remote nomini aniqlash
               REMOTE_NAME=\$(git remote | head -1)
               echo "🔗 Git Remote: \${REMOTE_NAME}"
               
@@ -144,15 +140,15 @@ jobs:
               # Orqaga - bench papkasiga qaytish
               cd \${BENCH_PATH}
               
-              # 1. Python kutubxonalarni yangilash
+              # 1. Python dependency
               echo "📦 Installing Requirements..."
               bench setup requirements --python || true
               
-              # 2. Frontend Assets (JS/CSS) ni qurish
+              # 2. Assets qurish
               echo "🎨 Building Assets..."
               bench build --app \${APP_DIR}
               
-              # 3. Migratsiya (DB o'zgarishlari)
+              # 3. Migratsiya
               echo "🗄️ Migrating Database..."
               bench --site \${SITE_NAME} migrate
               
@@ -179,7 +175,7 @@ jobs:
         if: success()
         run: |
           echo "🏥 Performing Health Check..."
-          sleep 15 # Servislar yonishi uchun biroz kutamiz
+          sleep 15
           
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_IP }} || echo "000")
           echo "🌐 Site Status Code: $HTTP_CODE"
