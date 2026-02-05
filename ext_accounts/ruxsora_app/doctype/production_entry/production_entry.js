@@ -74,6 +74,17 @@ frappe.ui.form.on('Production Entry', {
 
     posting_time: function(frm) {
         update_all_available_qty(frm);
+    },
+
+    target_warehouse: function(frm) {
+        // Update all source_warehouse in items when target_warehouse changes
+        if (frm.doc.target_warehouse && frm.doc.items && frm.doc.items.length > 0) {
+            frm.doc.items.forEach(function(row) {
+                frappe.model.set_value(row.doctype, row.name, "source_warehouse", frm.doc.target_warehouse);
+            });
+            frm.refresh_field("items");
+            update_all_available_qty(frm);
+        }
     }
 });
 
@@ -106,7 +117,7 @@ function fetch_bom_items(frm) {
             qty_to_manufacture: frm.doc.qty_to_manufacture,
             posting_date: frm.doc.posting_date,
             posting_time: frm.doc.posting_time,
-            source_warehouse: "Производство склад - R"
+            source_warehouse: frm.doc.target_warehouse || "Производственный склад - R"
         },
         callback: function(r) {
             if (r.message) {

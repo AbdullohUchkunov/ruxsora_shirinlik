@@ -146,7 +146,7 @@ def get_bom_items(bom_no, qty_to_manufacture, posting_date=None, posting_time=No
     bom = frappe.get_doc("BOM", bom_no)
     items = []
 
-    default_warehouse = source_warehouse or "Производство склад - R"
+    default_warehouse = source_warehouse or "Производственный склад - R"
 
     for bom_item in bom.items:
         # Calculate required qty proportionally

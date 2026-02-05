@@ -118,7 +118,7 @@
    "reqd": 1
   },
   {
-   "default": "Готовая продукция склад - R",
+   "default": "Производственный склад - R",
    "fieldname": "target_warehouse",
    "fieldtype": "Link",
    "label": "Target Warehouse",
