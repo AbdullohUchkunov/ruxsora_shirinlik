@@ -1,266 +1,203 @@
-# ============================================
-# FRAPPE APP AUTO-DEPLOYMENT WORKFLOW
-# ============================================
-# Bu fayl TEMPLATE - har bir projectga nusxa ko'chiring!
+# ==============================================================================
+# FRAPPE APP PRODUCTION DEPLOYMENT WORKFLOW (SENIOR EDITION)
+# ==============================================================================
+# Author: Senior DevOps/Developer
+# Description: Bu workflow mavjud Frappe ilovasini xavfsiz yangilaydi.
 #
-# USAGE:
-# 1. Bu faylni nusxa ko'chiring: akfa_accounting/.github/workflows/deploy.yml
-# 2. GitHub Settings → Secrets → Actions da quyidagilarni qo'shing:
-#    - SERVER_IP
-#    - SSH_PRIVATE_KEY
-#    - SITE_NAME
-#    - DB_PASSWORD
-#    - ADMIN_PASSWORD
-#    - APPS_TO_INSTALL (ixtiyoriy)
-# 3. main branch ga push qiling - avtomatik deploy bo'ladi!
-#
-# ============================================
+# TUZATILGAN MUAMMO:
+# - GitHub Repo nomi: "ruxsora_shirinlik"
+# - Serverdagi Papka: "ext_accounts"
+# - Yechim: APP_NAME o'zgaruvchisi "ext_accounts" ga qat'iy biriktirildi.
+# ==============================================================================
 
 name: Deploy to Production
 
-# Qachon ishga tushadi
+# ------------------------------------------------------------------------------
+# TRIGGER SOZLAMALARI
+# ------------------------------------------------------------------------------
 on:
   push:
     branches:
-      - main              # main branch ga push bo'lganda
-  workflow_dispatch:      # Manual trigger ham mumkin
+      - main              # main branchga kod tushganda ishlaydi
+  workflow_dispatch:      # GitHub interfeysidan qo'lda ishlatish uchun
 
-# Environment variables (GitHub Secrets dan olinadi)
+# ------------------------------------------------------------------------------
+# GLOBAL O'ZGARUVCHILAR
+# ------------------------------------------------------------------------------
 env:
-  FRAPPE_VERSION: "version-15"
-  PYTHON_VERSION: "3.11"
-  NODE_VERSION: "20"
+  # DIQQAT: Serverdagi papka nomini shu yerga yozing!
+  APP_NAME: "ext_accounts"
+  
+  # Serverdagi yo'llar
   BENCH_PATH: "/home/frappe/frappe-bench"
+  FRAPPE_USER: "frappe"
 
 jobs:
   deploy:
-    name: Deploy to Server
+    name: Production Server Update
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 15  # Agar 15 daqiqada tugamasa, bekor qilinadi (xavfsizlik)
+
     steps:
-      # ============================================
-      # 1. CODE CHECKOUT
-      # ============================================
-      - name: Checkout code
+      # ------------------------------------------------------------------------
+      # 1. KODNI TEKSHIRISH VA TAYYORLASH
+      # ------------------------------------------------------------------------
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full git history (for versioning)
+          fetch-depth: 0  # Versiyalar tarixi to'liq olinadi
 
-      # ============================================
-      # 2. SETUP SSH
-      # ============================================
-      - name: Setup SSH Key
+      # ------------------------------------------------------------------------
+      # 2. SSH KALITLARINI SOZLASH
+      # ------------------------------------------------------------------------
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      # ============================================
-      # 3. VALIDATE SECRETS
-      # ============================================
-      - name: Validate Configuration
+      # ------------------------------------------------------------------------
+      # 3. SIRLI MA'LUMOTLARNI (SECRETS) VALIDATSIYA QILISH
+      # ------------------------------------------------------------------------
+      - name: Validate Secrets
         run: |
-          if [ -z "${{ secrets.SERVER_IP }}" ]; then
-            echo "❌ ERROR: SERVER_IP secret not set!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SITE_NAME }}" ]; then
-            echo "❌ ERROR: SITE_NAME secret not set!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-            echo "❌ ERROR: SSH_PRIVATE_KEY secret not set!"
-            exit 1
-          fi
-          echo "✅ All required secrets are configured"
+          REQUIRED_SECRETS=("SERVER_IP" "SITE_NAME" "SSH_PRIVATE_KEY")
+          for secret in "${REQUIRED_SECRETS[@]}"; do
+            if [ -z "${!secret}" ] && [ -z "${{ secrets[secret] }}" ]; then
+              # Izoh: GitHub Actionsda secretlarni bash loopda to'g'ridan-to'g'ri tekshirish qiyin,
+              # shuning uchun oddiy manual tekshiruv tavsiya etiladi.
+              echo "Checking configuration..."
+            fi
+          done
+          
+          if [ -z "${{ secrets.SERVER_IP }}" ]; then echo "❌ SERVER_IP missing"; exit 1; fi
+          if [ -z "${{ secrets.SITE_NAME }}" ]; then echo "❌ SITE_NAME missing"; exit 1; fi
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then echo "❌ SSH_PRIVATE_KEY missing"; exit 1; fi
+          
+          echo "✅ Configuration validated successfully."
 
-      # ============================================
-      # 4. CHECK IF DEPLOYMENT EXISTS
-      # ============================================
-      - name: Check Deployment Status
+      # ------------------------------------------------------------------------
+      # 4. DEPLOYMENT STATUSINI TEKSHIRISH
+      # ------------------------------------------------------------------------
+      - name: Check Server Status
         id: check_deploy
         run: |
-          # Serverda frappe-bench bormi tekshirish
           if ssh root@${{ secrets.SERVER_IP }} "[ -d ${{ env.BENCH_PATH }} ]"; then
             echo "deployment_exists=true" >> $GITHUB_OUTPUT
-            echo "📦 Existing deployment found - will update"
+            echo "✅ Frappe Bench found on server."
           else
             echo "deployment_exists=false" >> $GITHUB_OUTPUT
-            echo "🆕 No deployment found - will do fresh install"
+            echo "⚠️ Frappe Bench not found!"
           fi
 
-      # ============================================
-      # 6A. FRESH DEPLOYMENT (First time)
-      # ============================================
-      # NOTE: This workflow is UPDATE-ONLY for cash_flow_app
-      # Fresh deployment should use frappe_universal_deploy repo
-      # https://github.com/Asadtop4ik/frappe_universal_deploy
-      # ============================================
-      - name: Fresh Deployment
-        if: steps.check_deploy.outputs.deployment_exists == 'false'
-        run: |
-          echo "❌ ERROR: Fresh deployment not supported!"
-          echo ""
-          echo "This workflow is for UPDATING existing Frappe installations only."
-          echo ""
-          echo "For fresh deployment, use frappe_universal_deploy:"
-          echo "  1. Clone: git clone https://github.com/Asadtop4ik/frappe_universal_deploy"
-          echo "  2. Configure: cp .env.example .env"
-          echo "  3. Edit .env with your settings"
-          echo "  4. Deploy: sudo bash deploy/deploy.sh"
-          echo ""
-          echo "After fresh deployment, this workflow will auto-update the app."
-          exit 1
-
-      # ============================================
-      # 6B. UPDATE EXISTING DEPLOYMENT
-      # ============================================
-      - name: Update Existing Deployment
+      # ------------------------------------------------------------------------
+      # 5. ASOSIY UPDATE JARAYONI (ENG MUHIM QISM)
+      # ------------------------------------------------------------------------
+      - name: Execute Server Update
         if: steps.check_deploy.outputs.deployment_exists == 'true'
         run: |
-          echo "🔄 Updating existing deployment..."
+          echo "🚀 Starting deployment for app: ${{ env.APP_NAME }}"
           
-          # Extract app name from repository
-          APP_NAME=$(basename ${{ github.repository }})
-          echo "📦 App name: ${APP_NAME}"
-          
-          # ============================================
-          # CRITICAL FIX: Pass SITE_NAME as variable
-          # Problem: Single-quote heredoc 'FRAPPE_EOF' 
-          # prevents GitHub Actions variable interpolation
-          # Solution: Pass as env var to SSH session
-          # ============================================
+          # SSH sessiyasini boshlaymiz.
+          # Biz ENV o'zgaruvchilarni to'g'ridan-to'g'ri inject qilamiz.
           
           ssh root@${{ secrets.SERVER_IP }} << ENDSSH
-            # Extract app name from repository for this SSH session
-            APP_NAME=\$(basename "${{ github.repository }}")
+            set -e  # Xatolik bo'lsa darhol to'xtatish
             
-            # Pass environment variables to frappe user
-            # Using double-quote heredoc to expand variables
-            su - frappe << 'FRAPPE_EOF'
-          # Set environment variables inside frappe shell
-          export SITE_NAME="${{ secrets.SITE_NAME }}"
-          export BENCH_PATH="${{ env.BENCH_PATH }}"
-          export APP_NAME="\$(basename "${{ github.repository }}")"
-          
-          set -e
-          cd \${BENCH_PATH}
-          
-          # Pull latest code - Auto-detect remote name
-          echo "📥 Pulling latest code for \${APP_NAME}..."
-          cd apps/\${APP_NAME}
-          
-          # Detect remote name (origin or upstream)
-          REMOTE_NAME=\$(git remote | head -1)
-          echo "🔗 Using remote: \${REMOTE_NAME}"
-          
-          # Pull latest changes
-          git fetch \${REMOTE_NAME}
-          git reset --hard \${REMOTE_NAME}/${{ github.ref_name }}
-          
-          echo "✅ Code updated to latest commit:"
-          git log -1 --oneline
-          
-          cd \${BENCH_PATH}
-          
-          # Install dependencies
-          echo "📦 Installing Python dependencies..."
-          bench setup requirements || true
-
-          # Build assets (Live - no downtime)
-          echo "🎨 Building frontend assets..."
-          bench build --app \${APP_NAME}
-          
-          # ============================================
-          # CRITICAL: Run migrations to apply fixtures
-          # ============================================
-          echo "🗄️  Running database migrations..."
-          bench --site \${SITE_NAME} migrate
-          
-          # Clear cache (ALWAYS after migrate!)
-          echo "🧹 Clearing cache..."
-          bench --site \${SITE_NAME} clear-cache
-          bench --site \${SITE_NAME} clear-website-cache
-          
-          echo "✅ Frappe user tasks completed!"
-          FRAPPE_EOF
-          
-          # Restart services (as root)
-          echo "🔄 Restarting services..."
-          supervisorctl restart all
-          systemctl reload nginx || true
-          
-          echo "✅ Deployment updated successfully!"
+            echo "🔒 Logged in as root. Switching to frappe user..."
+            
+            # Frappe useriga o'tamiz va buyruqlarni bajaramiz
+            su - ${FRAPPE_USER} << 'FRAPPE_EOF'
+              set -e
+              
+              # O'zgaruvchilarni qabul qilish
+              SITE_NAME="${{ secrets.SITE_NAME }}"
+              BENCH_PATH="${{ env.BENCH_PATH }}"
+              APP_DIR="${{ env.APP_NAME }}"  # <-- "ext_accounts" shu yerga keladi
+              GIT_BRANCH="${{ github.ref_name }}"
+              
+              echo "📂 Navigating to bench: \${BENCH_PATH}"
+              cd \${BENCH_PATH}
+              
+              # App papkasi borligini tekshirish
+              if [ ! -d "apps/\${APP_DIR}" ]; then
+                echo "❌ Error: App folder 'apps/\${APP_DIR}' not found!"
+                echo "Please install the app manually first using: bench get-app ..."
+                exit 1
+              fi
+              
+              echo "🔄 Updating source code for: \${APP_DIR}"
+              cd apps/\${APP_DIR}
+              
+              # Remote nomini aniqlash (origin yoki upstream)
+              REMOTE_NAME=\$(git remote | head -1)
+              echo "🔗 Git Remote: \${REMOTE_NAME}"
+              
+              # Kodni yangilash
+              git fetch \${REMOTE_NAME}
+              git reset --hard \${REMOTE_NAME}/\${GIT_BRANCH}
+              
+              echo "✅ Code updated to commit:"
+              git log -1 --oneline
+              
+              # Orqaga - bench papkasiga qaytish
+              cd \${BENCH_PATH}
+              
+              # 1. Python kutubxonalarni yangilash
+              echo "📦 Installing Requirements..."
+              bench setup requirements --python || true
+              
+              # 2. Frontend Assets (JS/CSS) ni qurish
+              echo "🎨 Building Assets..."
+              bench build --app \${APP_DIR}
+              
+              # 3. Migratsiya (DB o'zgarishlari)
+              echo "🗄️ Migrating Database..."
+              bench --site \${SITE_NAME} migrate
+              
+              # 4. Keshni tozalash
+              echo "🧹 Clearing Cache..."
+              bench --site \${SITE_NAME} clear-cache
+              bench --site \${SITE_NAME} clear-website-cache
+              
+              echo "✅ Frappe User Tasks Completed!"
+            FRAPPE_EOF
+            
+            # Root huquqlari bilan servislarni restart qilish
+            echo "🔄 Restarting System Services..."
+            supervisorctl restart all
+            systemctl reload nginx || true
+            
+            echo "✅ DEPLOYMENT FINISHED SUCCESSFULLY!"
           ENDSSH
 
-      # ============================================
-      # 7. HEALTH CHECK
-      # ============================================
-      - name: Health Check
-        run: |
-          echo "🏥 Running health check..."
-          
-          # Wait for services to start
-          sleep 10
-          
-          # Check if site is accessible
-          SITE_URL="http://${{ secrets.SERVER_IP }}"
-          
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" $SITE_URL || echo "000")
-          
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
-            echo "✅ Site is accessible! (HTTP $HTTP_CODE)"
-          else
-            echo "⚠️ Warning: Site returned HTTP $HTTP_CODE"
-            echo "This might be normal if SSL redirect is configured"
-          fi
-          
-          # Check via SSH
-          ssh root@${{ secrets.SERVER_IP }} << 'ENDSSH'
-            echo "📊 Service Status:"
-            supervisorctl status | head -5
-            
-            echo ""
-            echo "💾 Disk Usage:"
-            df -h / | tail -1
-            
-            echo ""
-            echo "🧠 Memory Usage:"
-            free -h | grep Mem
-          ENDSSH
-
-      # ============================================
-      # 8. SEND NOTIFICATION (Optional)
-      # ============================================
-      - name: Send Success Notification
+      # ------------------------------------------------------------------------
+      # 6. YAKUNIY TEKSHIRUV (HEALTH CHECK)
+      # ------------------------------------------------------------------------
+      - name: Verify Deployment
         if: success()
         run: |
-          echo "✅ Deployment successful!"
-          echo ""
-          echo "🌐 Site: http://${{ secrets.SERVER_IP }}"
-          echo "📦 App: ${{ github.repository }}"
-          echo "🌿 Branch: ${{ github.ref_name }}"
-          echo "📝 Commit: ${{ github.sha }}"
-          echo "👤 Author: ${{ github.actor }}"
+          echo "🏥 Performing Health Check..."
+          sleep 15 # Servislar yonishi uchun biroz kutamiz
           
-          # Agar webhook URL bo'lsa, notification yuborish
-          # curl -X POST ${{ secrets.WEBHOOK_URL }} -d "Deployment successful!"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_IP }} || echo "000")
+          echo "🌐 Site Status Code: $HTTP_CODE"
+          
+          if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]]; then
+             echo "✅ Site is UP and Running!"
+          else
+             echo "⚠️ Warning: Site check returned $HTTP_CODE (Check Nginx logs)"
+          fi
 
-      - name: Send Failure Notification
-        if: failure()
+      # ------------------------------------------------------------------------
+      # 7. NOTIFIKATSIYA (LOG)
+      # ------------------------------------------------------------------------
+      - name: Deployment Summary
+        if: always()
         run: |
-          echo "❌ Deployment failed!"
-          echo "Check logs above for details"
-          
-          # Agar webhook URL bo'lsa, error yuborish
-          # curl -X POST ${{ secrets.WEBHOOK_URL }} -d "Deployment failed!"
-
-# ============================================
-# SECURITY NOTES
-# ============================================
-# 1. HECH QACHON parollarni code da yozmang!
-# 2. Barcha sensitive data GitHub Secrets da
-# 3. SSH key ni hech qachon commit qilmang!
-# 4. .env faylni .gitignore ga qo'shing
-# ============================================
+          echo "========================================="
+          echo "App: ${{ env.APP_NAME }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Status: ${{ job.status }}"
+          echo "========================================="
