@@ -72,14 +72,8 @@ class Kassa(Document):
     def get_paid_from_account(self, payment_type):
         """Payment type ga qarab paid_from accountni olish"""
         if payment_type == "Receive":
-            # Приход - receivable account
-            if self.party_type == "Customer":
-                return frappe.get_cached_value("Company", self.company, "default_receivable_account")
-            elif self.party_type == "Supplier":
-                return frappe.get_cached_value("Company", self.company, "default_payable_account")
-            elif self.party_type == "Employee":
-                return frappe.db.get_value("Account",
-                    {"company": self.company, "account_type": "Payable", "is_group": 0}, "name")
+            # Приход - receivable/payable account (cash account valyutasiga mos)
+            return self.get_party_account_by_currency()
         else:
             # Расход - cash account
             return self.cash_account
@@ -90,14 +84,75 @@ class Kassa(Document):
             # Приход - cash account
             return self.cash_account
         else:
-            # Расход - payable account
-            if self.party_type == "Customer":
-                return frappe.get_cached_value("Company", self.company, "default_receivable_account")
-            elif self.party_type == "Supplier":
-                return frappe.get_cached_value("Company", self.company, "default_payable_account")
-            elif self.party_type == "Employee":
-                return frappe.db.get_value("Account",
-                    {"company": self.company, "account_type": "Payable", "is_group": 0}, "name")
+            # Расход - receivable/payable account (cash account valyutasiga mos)
+            return self.get_party_account_by_currency()
+
+    def get_party_account_by_currency(self):
+        """Cash account valyutasiga mos party accountni olish
+
+        UZS cash account → 1311 (receivable) yoki 2111 (payable)
+        USD cash account → 1310 (receivable) yoki 2110 (payable)
+        """
+        cash_currency = self.cash_account_currency or frappe.get_cached_value(
+            "Account", self.cash_account, "account_currency"
+        )
+
+        if self.party_type == "Customer":
+            # Receivable account - 1311 (UZS) yoki 1310 (USD)
+            account_number = "1311" if cash_currency == "UZS" else "1310"
+            account = frappe.db.get_value(
+                "Account",
+                {"company": self.company, "account_number": account_number, "is_group": 0},
+                "name"
+            )
+            if account:
+                return account
+            # Fallback: valyutaga mos receivable account
+            return frappe.db.get_value(
+                "Account",
+                {
+                    "company": self.company,
+                    "account_type": "Receivable",
+                    "account_currency": cash_currency,
+                    "is_group": 0
+                },
+                "name"
+            ) or frappe.get_cached_value("Company", self.company, "default_receivable_account")
+
+        elif self.party_type == "Supplier":
+            # Payable account - 2111 (UZS) yoki 2110 (USD)
+            account_number = "2111" if cash_currency == "UZS" else "2110"
+            account = frappe.db.get_value(
+                "Account",
+                {"company": self.company, "account_number": account_number, "is_group": 0},
+                "name"
+            )
+            if account:
+                return account
+            # Fallback: valyutaga mos payable account
+            return frappe.db.get_value(
+                "Account",
+                {
+                    "company": self.company,
+                    "account_type": "Payable",
+                    "account_currency": cash_currency,
+                    "is_group": 0
+                },
+                "name"
+            ) or frappe.get_cached_value("Company", self.company, "default_payable_account")
+
+        elif self.party_type == "Employee":
+            # Employee uchun payable account
+            return frappe.db.get_value(
+                "Account",
+                {
+                    "company": self.company,
+                    "account_type": "Payable",
+                    "account_currency": cash_currency,
+                    "is_group": 0
+                },
+                "name"
+            )
 
     def create_dividend_journal_entry(self):
         """Dividend uchun Journal Entry yaratish (3400 accountga)"""

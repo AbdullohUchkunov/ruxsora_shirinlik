@@ -5,6 +5,11 @@ app_description = "for app ruxsora changing"
 app_email = "abdullohuchkunov@gmail.com"
 app_license = "mit"
 
+# Fixtures
+fixtures = [
+    {"dt": "Custom Field", "filters": [["dt", "=", "Stock Entry"], ["fieldname", "=", "custom_production_entry"]]}
+]
+
 # Apps
 # ------------------
 app_include_js = [
