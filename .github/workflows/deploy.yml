@@ -1,12 +1,12 @@
 # ==============================================================================
-# FRAPPE APP PRODUCTION DEPLOYMENT WORKFLOW (FIXED VERSION)
+# FRAPPE APP PRODUCTION DEPLOYMENT WORKFLOW (FINAL STABLE VERSION)
 # ==============================================================================
 # Author: Senior DevOps/Developer
-# Description: Bu workflow mavjud Frappe ilovasini xavfsiz yangilaydi.
 #
-# TUZATISH (Fix):
-# - Secret validatsiyasidagi syntax xatolik tuzatildi.
-# - App nomi "ext_accounts" ga qat'iy biriktirilgan.
+# TUZATILGAN MUAMMOLAR:
+# 1. App nomi: "ext_accounts" ga qat'iy biriktirildi.
+# 2. Indentatsiya: FRAPPE_EOF va ENDSSH xatolik bermaydigan qilib tuzildi.
+# 3. Secret Validation: Soddalashtirildi.
 # ==============================================================================
 
 name: Deploy to Production
@@ -24,7 +24,7 @@ on:
 # GLOBAL O'ZGARUVCHILAR
 # ------------------------------------------------------------------------------
 env:
-  # DIQQAT: Serverdagi papka nomini shu yerga yozing!
+  # DIQQAT: Serverdagi papka nomi aynan shu bo'lishi shart!
   APP_NAME: "ext_accounts"
   
   # Serverdagi yo'llar
@@ -57,11 +57,10 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
       # ------------------------------------------------------------------------
-      # 3. SIRLI MA'LUMOTLARNI (SECRETS) VALIDATSIYA QILISH (TUZATILDI)
+      # 3. SIRLI MA'LUMOTLARNI (SECRETS) VALIDATSIYA QILISH
       # ------------------------------------------------------------------------
       - name: Validate Secrets
         run: |
-          # Oddiy va ishonchli tekshiruv
           if [ -z "${{ secrets.SERVER_IP }}" ]; then
             echo "❌ ERROR: SERVER_IP secret not set!"
             exit 1
@@ -91,74 +90,76 @@ jobs:
           fi
 
       # ------------------------------------------------------------------------
-      # 5. ASOSIY UPDATE JARAYONI
+      # 5. ASOSIY UPDATE JARAYONI (ENG MUHIM QISM)
       # ------------------------------------------------------------------------
       - name: Execute Server Update
         if: steps.check_deploy.outputs.deployment_exists == 'true'
         run: |
           echo "🚀 Starting deployment for app: ${{ env.APP_NAME }}"
           
+          # SSH orqali ulanish. 
+          # DIQQAT: Pastdagi ENDSSH chapga taqalgan!
           ssh root@${{ secrets.SERVER_IP }} << ENDSSH
             set -e
             
             echo "🔒 Logged in as root. Switching to frappe user..."
             
             # Frappe useriga o'tamiz
+            # DIQQAT: Pastdagi FRAPPE_EOF chapga taqalgan!
             su - ${FRAPPE_USER} << 'FRAPPE_EOF'
-              set -e
-              
-              # O'zgaruvchilarni qabul qilish
-              SITE_NAME="${{ secrets.SITE_NAME }}"
-              BENCH_PATH="${{ env.BENCH_PATH }}"
-              APP_DIR="${{ env.APP_NAME }}"  # "ext_accounts"
-              GIT_BRANCH="${{ github.ref_name }}"
-              
-              echo "📂 Navigating to bench: \${BENCH_PATH}"
-              cd \${BENCH_PATH}
-              
-              # App papkasi borligini tekshirish
-              if [ ! -d "apps/\${APP_DIR}" ]; then
-                echo "❌ Error: App folder 'apps/\${APP_DIR}' not found!"
-                echo "Please install the app manually first using: bench get-app ..."
-                exit 1
-              fi
-              
-              echo "🔄 Updating source code for: \${APP_DIR}"
-              cd apps/\${APP_DIR}
-              
-              # Remote nomini aniqlash
-              REMOTE_NAME=\$(git remote | head -1)
-              echo "🔗 Git Remote: \${REMOTE_NAME}"
-              
-              # Kodni yangilash
-              git fetch \${REMOTE_NAME}
-              git reset --hard \${REMOTE_NAME}/\${GIT_BRANCH}
-              
-              echo "✅ Code updated to commit:"
-              git log -1 --oneline
-              
-              # Orqaga - bench papkasiga qaytish
-              cd \${BENCH_PATH}
-              
-              # 1. Python dependency
-              echo "📦 Installing Requirements..."
-              bench setup requirements --python || true
-              
-              # 2. Assets qurish
-              echo "🎨 Building Assets..."
-              bench build --app \${APP_DIR}
-              
-              # 3. Migratsiya
-              echo "🗄️ Migrating Database..."
-              bench --site \${SITE_NAME} migrate
-              
-              # 4. Keshni tozalash
-              echo "🧹 Clearing Cache..."
-              bench --site \${SITE_NAME} clear-cache
-              bench --site \${SITE_NAME} clear-website-cache
-              
-              echo "✅ Frappe User Tasks Completed!"
-            FRAPPE_EOF
+            set -e
+            
+            # O'zgaruvchilarni qabul qilish
+            SITE_NAME="${{ secrets.SITE_NAME }}"
+            BENCH_PATH="${{ env.BENCH_PATH }}"
+            APP_DIR="${{ env.APP_NAME }}"
+            GIT_BRANCH="${{ github.ref_name }}"
+            
+            echo "📂 Navigating to bench: \${BENCH_PATH}"
+            cd \${BENCH_PATH}
+            
+            # App papkasi borligini tekshirish
+            if [ ! -d "apps/\${APP_DIR}" ]; then
+              echo "❌ Error: App folder 'apps/\${APP_DIR}' not found!"
+              exit 1
+            fi
+            
+            echo "🔄 Updating source code for: \${APP_DIR}"
+            cd apps/\${APP_DIR}
+            
+            # Remote nomini aniqlash
+            REMOTE_NAME=\$(git remote | head -1)
+            echo "🔗 Git Remote: \${REMOTE_NAME}"
+            
+            # Kodni yangilash
+            git fetch \${REMOTE_NAME}
+            git reset --hard \${REMOTE_NAME}/\${GIT_BRANCH}
+            
+            echo "✅ Code updated to commit:"
+            git log -1 --oneline
+            
+            # Orqaga - bench papkasiga qaytish
+            cd \${BENCH_PATH}
+            
+            # 1. Python dependency
+            echo "📦 Installing Requirements..."
+            bench setup requirements --python || true
+            
+            # 2. Assets qurish
+            echo "🎨 Building Assets..."
+            bench build --app \${APP_DIR}
+            
+            # 3. Migratsiya
+            echo "🗄️ Migrating Database..."
+            bench --site \${SITE_NAME} migrate
+            
+            # 4. Keshni tozalash
+            echo "🧹 Clearing Cache..."
+            bench --site \${SITE_NAME} clear-cache
+            bench --site \${SITE_NAME} clear-website-cache
+            
+            echo "✅ Frappe User Tasks Completed!"
+          FRAPPE_EOF
             
             # Root huquqlari bilan servislarni restart qilish
             echo "🔄 Restarting System Services..."
