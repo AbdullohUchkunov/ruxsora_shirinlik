@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, now_datetime, get_datetime, cstr
+from frappe.utils import flt
 
 
 class ProductionEntry(Document):
@@ -186,23 +186,8 @@ def get_stock_balance(item_code, warehouse, posting_date=None, posting_time=None
     if not posting_time:
         posting_time = frappe.utils.nowtime()
 
-    # Combine date and time for comparison
-    posting_datetime = get_datetime(f"{posting_date} {posting_time}")
-
-    # Get balance using Stock Ledger Entry
-    balance = frappe.db.sql("""
-        SELECT SUM(actual_qty) as balance
-        FROM `tabStock Ledger Entry`
-        WHERE item_code = %s
-        AND warehouse = %s
-        AND is_cancelled = 0
-        AND TIMESTAMP(posting_date, posting_time) <= %s
-    """, (item_code, warehouse, posting_datetime), as_dict=True)
-
-    if balance and balance[0].balance:
-        return flt(balance[0].balance)
-
-    return 0
+    from erpnext.stock.utils import get_stock_balance as _get_stock_balance
+    return flt(_get_stock_balance(item_code, warehouse, posting_date, posting_time))
 
 
 @frappe.whitelist()
