@@ -236,6 +236,13 @@ class Kassa(Document):
         company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
         expense_account_currency = frappe.get_cached_value("Account", self.expense_account, "account_currency") or company_currency
 
+        # Expense Cost Center dan cost_center olish
+        cost_center = frappe.db.get_value(
+            "Expense Cost Center",
+            {"expense_account": self.expense_account},
+            "cost_center"
+        )
+
         je = frappe.new_doc("Journal Entry")
         je.voucher_type = "Journal Entry"
         je.posting_date = self.date
@@ -266,6 +273,7 @@ class Kassa(Document):
             # Debit expense account (company currency)
             je.append("accounts", {
                 "account": self.expense_account,
+                "cost_center": cost_center,
                 "debit_in_account_currency": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount),
                 "account_currency": expense_account_currency,
                 "exchange_rate": 1,
@@ -283,6 +291,7 @@ class Kassa(Document):
             # Debit expense account
             je.append("accounts", {
                 "account": self.expense_account,
+                "cost_center": cost_center,
                 "debit_in_account_currency": flt(self.amount),
                 "debit": flt(self.amount)
             })

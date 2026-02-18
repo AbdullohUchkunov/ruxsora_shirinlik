@@ -177,26 +177,32 @@ doc_events = {
         "on_update": "ext_accounts.overrides.account_hooks.on_update",
         "on_trash": "ext_accounts.overrides.account_hooks.on_trash"
     },
-    	"Purchase Invoice": {
-		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
-	},
-	"Purchase Receipt": {
-		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
-	},
-	"Sales Invoice": {
-		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
-	},
-	"Delivery Note": {
-		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
-	},
-	"Payment Entry": {
-		"before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-		"before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
-	}
+    "Purchase Invoice": {
+        "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "on_submit": "ext_accounts.telegram_notifications.notify_purchase_invoice"
+    },
+    "Purchase Receipt": {
+        "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+    },
+    "Sales Invoice": {
+        "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "on_submit": "ext_accounts.telegram_notifications.notify_sales_invoice"
+    },
+    "Delivery Note": {
+        "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults"
+    },
+    "Payment Entry": {
+        "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
+        "on_submit": "ext_accounts.telegram_notifications.notify_payment_entry"
+    },
+    "Salary Slip": {
+        "on_submit": "ext_accounts.telegram_notifications.notify_salary_slip"
+    }
 }
 
 # Scheduled Tasks

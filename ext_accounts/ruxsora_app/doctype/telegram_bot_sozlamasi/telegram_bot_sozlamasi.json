@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "creation": "2025-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "telegram_token",
+  "webhook_url",
+  "section_parties",
+  "parties"
+ ],
+ "fields": [
+  {
+   "fieldname": "telegram_token",
+   "fieldtype": "Data",
+   "label": "Telegram Bot Token",
+   "reqd": 1,
+   "description": "BotFather dan olingan token (masalan: 123456789:AABBccDDee...)"
+  },
+  {
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL",
+   "description": "Telegram webhook manzili. Misol: https://yourdomain.com/api/method/ext_accounts.telegram_bot.handle_update"
+  },
+  {
+   "fieldname": "section_parties",
+   "fieldtype": "Section Break",
+   "label": "Ro'yxatdan o'tgan foydalanuvchilar"
+  },
+  {
+   "fieldname": "parties",
+   "fieldtype": "Table",
+   "label": "Foydalanuvchilar",
+   "options": "Telegram Bot Party"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_single": 1,
+ "links": [],
+ "modified": "2025-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ruxsora App",
+ "name": "Telegram Bot Sozlamasi",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

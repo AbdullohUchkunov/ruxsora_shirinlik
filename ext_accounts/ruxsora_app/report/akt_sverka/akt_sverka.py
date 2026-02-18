@@ -1,3 +1,5 @@
+import json
+import os
 import frappe
 from frappe.utils import flt
 
@@ -527,6 +529,83 @@ def get_journal_entry_accounts(voucher_no, party_type, party):
     """, (voucher_no, party_type, party), as_dict=True)
     
     return accounts
+
+
+@frappe.whitelist()
+def download_pdf(filters=None):
+    """Akt Sverka reportini PDF formatida yuklab berish"""
+    from weasyprint import HTML as WeasyHTML
+
+    if isinstance(filters, str):
+        filters = json.loads(filters)
+
+    if not filters:
+        frappe.throw("Filters kiritilmagan")
+
+    result = execute(filters)
+    data = result[1]
+
+    # Summary qiymatlarini hisoblash
+    opening_balance = flt(data[0].get('balance', 0)) if data else 0
+
+    closing_balance = 0
+    total_row = [r for r in data if r.get('voucher_type') == 'Total']
+    if total_row:
+        closing_balance = flt(total_row[0].get('balance', 0))
+    elif data:
+        closing_balance = flt(data[-1].get('balance', 0))
+
+    opening_credit = opening_balance if opening_balance > 0 else 0
+    opening_debit = abs(opening_balance) if opening_balance < 0 else 0
+
+    goods_credit = sum(flt(r.get('credit', 0)) for r in data if r.get('voucher_type') == 'Purchase Invoice')
+    goods_debit = sum(flt(r.get('debit', 0)) for r in data if r.get('voucher_type') == 'Sales Invoice')
+    money_credit = sum(flt(r.get('credit', 0)) for r in data if r.get('voucher_type') == 'Payment Entry')
+    money_debit = sum(flt(r.get('debit', 0)) for r in data if r.get('voucher_type') == 'Payment Entry')
+    accruals_credit = sum(flt(r.get('credit', 0)) for r in data if r.get('voucher_type') in ['Journal Entry', 'Salary Slip'])
+    accruals_debit = sum(flt(r.get('debit', 0)) for r in data if r.get('voucher_type') in ['Journal Entry', 'Salary Slip'])
+
+    closing_credit = closing_balance if closing_balance > 0 else 0
+    closing_debit = abs(closing_balance) if closing_balance < 0 else 0
+
+    company = (
+        frappe.defaults.get_user_default('company') or
+        frappe.db.get_single_value('Global Defaults', 'default_company') or ''
+    )
+
+    context = {
+        'data': data,
+        'party': filters.get('party', ''),
+        'party_type': filters.get('party_type', ''),
+        'from_date': filters.get('from_date', ''),
+        'to_date': filters.get('to_date', ''),
+        'company': company,
+        'opening_credit': opening_credit,
+        'opening_debit': opening_debit,
+        'goods_credit': goods_credit,
+        'goods_debit': goods_debit,
+        'money_credit': money_credit,
+        'money_debit': money_debit,
+        'accruals_credit': accruals_credit,
+        'accruals_debit': accruals_debit,
+        'closing_credit': closing_credit,
+        'closing_debit': closing_debit,
+    }
+
+    template_path = os.path.join(
+        frappe.get_app_path('ext_accounts'),
+        'ruxsora_app', 'report', 'akt_sverka', 'akt_sverka_pdf.html'
+    )
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+
+    html = frappe.render_template(template_content, context)
+    pdf = WeasyHTML(string=html).write_pdf()
+
+    party_name = (filters.get('party', 'report') or 'report').replace(' ', '_')
+    frappe.local.response.filename = f"Akt_Sverka_{party_name}_{filters.get('from_date', '')}_{filters.get('to_date', '')}.pdf"
+    frappe.local.response.filecontent = pdf
+    frappe.local.response.type = "download"
 
 
 def get_summary_html(data, filters):

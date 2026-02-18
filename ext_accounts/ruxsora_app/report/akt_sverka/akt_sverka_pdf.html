@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 12mm 18mm;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 9pt;
+            color: #000;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 13pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 10pt;
+            margin-bottom: 18px;
+            color: #333;
+        }
+
+        .info-table {
+            width: 100%;
+            border: none;
+            margin-bottom: 15px;
+            font-size: 9.5pt;
+        }
+        .info-table td {
+            border: none;
+            padding: 2px 6px 2px 0;
+        }
+        .info-table td:first-child {
+            font-weight: bold;
+            width: 130px;
+        }
+
+        /* Asosiy jadval */
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 7.5pt;
+        }
+        .main-table th {
+            background-color: #e8e8e8;
+            border: 1px solid #555;
+            padding: 5px 3px;
+            text-align: center;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        .main-table td {
+            border: 1px solid #888;
+            padding: 3px 4px;
+            vertical-align: middle;
+        }
+        .main-table .opening-row td {
+            background-color: #fffde7;
+            font-style: italic;
+        }
+        .main-table .total-row td {
+            background-color: #ddeeff;
+            font-weight: bold;
+            border: 1px solid #555;
+        }
+        .num { text-align: right; }
+        .ctr { text-align: center; }
+
+        /* Summary jadval */
+        h3 {
+            font-size: 10pt;
+            margin-bottom: 8px;
+        }
+        .summary-table {
+            border-collapse: collapse;
+            font-size: 9pt;
+            margin-bottom: 30px;
+        }
+        .summary-table th {
+            background-color: #e8e8e8;
+            border: 1px solid #555;
+            padding: 6px 10px;
+            text-align: center;
+        }
+        .summary-table td {
+            border: 1px solid #888;
+            padding: 5px 10px;
+        }
+        .summary-table .label-cell { width: 220px; font-weight: 500; }
+        .summary-table .credit-cell { width: 130px; text-align: right; color: #c62828; }
+        .summary-table .debit-cell  { width: 130px; text-align: right; color: #2e7d32; }
+        .summary-table .total-row td {
+            background-color: #ddeeff;
+            font-weight: bold;
+            border: 1px solid #555;
+        }
+
+        /* Imzo qismi */
+        .sig-section {
+            margin-top: 50px;
+            width: 100%;
+        }
+        .sig-section table {
+            width: 100%;
+            border: none;
+        }
+        .sig-section td {
+            border: none;
+            width: 50%;
+            vertical-align: top;
+            padding: 0 10px;
+        }
+        .sig-name {
+            font-weight: bold;
+            font-size: 10pt;
+            margin-bottom: 35px;
+        }
+        .sig-line {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+            font-size: 8.5pt;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Akt Sverka / АКТ СВЕРКИ ВЗАИМОРАСЧЁТОВ</h1>
+    <div class="subtitle">{{ from_date }} дан {{ to_date }} гача / за период с {{ from_date }} по {{ to_date }}</div>
+
+    <table class="info-table">
+        <tr>
+            <td>Компания:</td>
+            <td>{{ company }}</td>
+        </tr>
+        <tr>
+            <td>Контрагент:</td>
+            <td>{{ party }}{% if party_type %} ({{ party_type }}){% endif %}</td>
+        </tr>
+    </table>
+
+    <!-- Asosiy tranzaksiyalar jadvali -->
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th style="width:72px;">Сана</th>
+                <th style="width:100px;">Ҳужжат</th>
+                <th style="width:95px;">Ҳужжат №</th>
+                <th>Маҳсулот номи</th>
+                <th style="width:50px;">Миқдор</th>
+                <th style="width:75px;">Нарх</th>
+                <th style="width:38px;">Вал.</th>
+                <th style="width:82px;">Кредит</th>
+                <th style="width:82px;">Дебет</th>
+                <th style="width:82px;">Қолдиқ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            {% if row.voucher_type == 'Total' %}
+            <tr class="total-row">
+            {% elif row.voucher_type == "Boshlang'ich qoldiq" %}
+            <tr class="opening-row">
+            {% else %}
+            <tr>
+            {% endif %}
+                <td class="ctr">{{ row.posting_date or '' }}</td>
+                <td>{{ row.voucher_type or '' }}</td>
+                <td class="ctr">{{ row.voucher_no or '' }}</td>
+                <td>{{ row.item_name or '' }}</td>
+                <td class="num">{% if row.qty is not none and row.qty != 0 %}{{ '%.2f'|format(row.qty) }}{% endif %}</td>
+                <td class="num">{% if row.rate %}{{ '{:,.2f}'.format(row.rate|float) }}{% endif %}</td>
+                <td class="ctr">{{ row.currency or '' }}</td>
+                <td class="num">{% if row.credit %}{{ '{:,.2f}'.format(row.credit|float) }}{% endif %}</td>
+                <td class="num">{% if row.debit %}{{ '{:,.2f}'.format(row.debit|float) }}{% endif %}</td>
+                <td class="num">{% if row.balance is not none %}{{ '%.2f'|format(row.balance|float) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Summary jadval -->
+    <h3>Умумий ҳисоб / Итоговый расчёт</h3>
+    <table class="summary-table">
+        <thead>
+            <tr>
+                <th class="label-cell"></th>
+                <th>Кредит</th>
+                <th>Дебет</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-cell">Остаток на начало</td>
+                <td class="credit-cell">{{ '{:,.2f}'.format(opening_credit) }}</td>
+                <td class="debit-cell">{{ '{:,.2f}'.format(opening_debit) }}</td>
+            </tr>
+            <tr>
+                <td class="label-cell">Оборот по товарам</td>
+                <td class="credit-cell">{{ '{:,.2f}'.format(goods_credit) }}</td>
+                <td class="debit-cell">{{ '{:,.2f}'.format(goods_debit) }}</td>
+            </tr>
+            <tr>
+                <td class="label-cell">Оборот по деньгам</td>
+                <td class="credit-cell">{{ '{:,.2f}'.format(money_credit) }}</td>
+                <td class="debit-cell">{{ '{:,.2f}'.format(money_debit) }}</td>
+            </tr>
+            <tr>
+                <td class="label-cell">Начисления (JE + Salary)</td>
+                <td class="credit-cell">{{ '{:,.2f}'.format(accruals_credit) }}</td>
+                <td class="debit-cell">{{ '{:,.2f}'.format(accruals_debit) }}</td>
+            </tr>
+            <tr class="total-row">
+                <td class="label-cell">Остаток на конец</td>
+                <td class="credit-cell">{{ '{:,.2f}'.format(closing_credit) }}</td>
+                <td class="debit-cell">{{ '{:,.2f}'.format(closing_debit) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Imzo qismi -->
+    <div class="sig-section">
+        <table>
+            <tr>
+                <td>
+                    <div class="sig-name">{{ company }}</div>
+                    <div class="sig-line">Имзо / Подпись: ___________________________</div>
+                </td>
+                <td>
+                    <div class="sig-name">{{ party }}</div>
+                    <div class="sig-line">Имзо / Подпись: ___________________________</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>

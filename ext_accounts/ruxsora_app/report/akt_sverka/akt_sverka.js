@@ -1,5 +1,15 @@
 frappe.query_reports["Akt Sverka"] = {
     "onload": function(report) {
+        // PDF yuklab olish tugmasi
+        report.page.add_inner_button(__("PDF Yuklash"), function() {
+            var filters = frappe.query_report.get_filter_values(true);
+            if (!filters) return;
+
+            var url = '/api/method/ext_accounts.ruxsora_app.report.akt_sverka.akt_sverka.download_pdf'
+                + '?filters=' + encodeURIComponent(JSON.stringify(filters));
+            window.open(url);
+        }, __("Yuklash"));
+
         // Add back button to return to Kontragent Otchet
         report.page.add_inner_button(__("Контрагент Отчётга Қайтиш"), function() {
             var from_date = frappe.query_report.get_filter_value('from_date');
