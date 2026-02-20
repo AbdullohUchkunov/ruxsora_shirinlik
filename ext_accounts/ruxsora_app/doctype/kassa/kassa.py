@@ -158,10 +158,10 @@ class Kassa(Document):
         """Dividend uchun Journal Entry yaratish (3400 accountga)"""
         # Get dividend account (3400)
         dividend_account = frappe.db.get_value("Account",
-            {"company": self.company, "account_number": "3400", "is_group": 0}, "name")
+            {"company": self.company, "account_number": "3200", "is_group": 0}, "name")
 
         if not dividend_account:
-            frappe.throw(_("Счет дивидендов (3400) не найден для компании {0}").format(self.company))
+            frappe.throw(_("Счет дивидендов (3200) не найден для компании {0}").format(self.company))
 
         # Get cash account currency
         cash_account_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
