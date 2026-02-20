@@ -203,12 +203,21 @@ def get_data(filters):
     all_entries.sort(key=lambda x: x['posting_date'])
 
     balance = opening_balance  # Balance party valyutasida
+    seen_je_vouchers = set()  # Journal Entry lar ikki marta hisoblanmasin
 
     # Har bir entry uchun detail ma'lumotlarni olish
     for entry in all_entries:
         voucher_type = entry.get('voucher_type')
         voucher_no = entry.get('voucher_no')
-        
+
+        # Bitta JE bir nechta GL entry yaratadi (har bir account qatori uchun).
+        # Agar bir JE da bir nechta qatorda party bo'lsa, duplicate bo'ladi.
+        # Shuning uchun har bir JE faqat bir marta ishlanadi.
+        if voucher_type == "Journal Entry":
+            if voucher_no in seen_je_vouchers:
+                continue
+            seen_je_vouchers.add(voucher_no)
+
         gl = entry
         
         # Purchase Invoice uchun item details
