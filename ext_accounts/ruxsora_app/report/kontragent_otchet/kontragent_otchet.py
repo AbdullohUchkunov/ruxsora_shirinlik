@@ -288,18 +288,7 @@ def calculate_opening_balance(party_type, party, from_date, currency):
           AND ge.is_cancelled = 0
     """, (from_date, party_type, party, currency))[0][0] or 0
 
-    # Salary Slip (only for Employee, UZS) - tabSalary Slip dan to'g'ridan-to'g'ri
-    salary_credit = 0
-    if currency == "UZS" and party_type == "Employee":
-        salary_credit = frappe.db.sql("""
-            SELECT IFNULL(SUM(gross_pay), 0)
-            FROM `tabSalary Slip`
-            WHERE posting_date < %s
-              AND employee = %s
-              AND docstatus = 1
-        """, (from_date, party))[0][0] or 0
-
-    total_credit = je_opening_credit + je_journal_credit + pi_credit + pe_receive_credit + salary_credit
+    total_credit = je_opening_credit + je_journal_credit + pi_credit + pe_receive_credit
 
     # Debit calculations
     # Journal Entry Opening Entry Debit
@@ -451,19 +440,7 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           AND ge.is_cancelled = 0
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 
-    # Salary Slip (only for Employee, UZS) - tabSalary Slip dan to'g'ridan-to'g'ri
-    salary_credit = 0
-    if currency == "UZS" and party_type == "Employee":
-        salary_credit = frappe.db.sql("""
-            SELECT IFNULL(SUM(gross_pay), 0)
-            FROM `tabSalary Slip`
-            WHERE posting_date >= %s
-              AND posting_date <= %s
-              AND employee = %s
-              AND docstatus = 1
-        """, (from_date, to_date, party))[0][0] or 0
-
-    total_credit = opening_credit + je_credit + pi_credit + pe_receive_credit + salary_credit
+    total_credit = opening_credit + je_credit + pi_credit + pe_receive_credit
 
     # Debit calculations
     # Opening Entry Debit
