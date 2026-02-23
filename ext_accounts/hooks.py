@@ -23,7 +23,8 @@ app_include_js = [
 
 # DocType overrides
 override_doctype_class = {
-    "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody"
+    "Payment Entry": "ext_accounts.overrides.payment_entry_rashody.PaymentEntryRashody",
+    "Journal Entry": "ext_accounts.overrides.journal_entry_override.JournalEntryOverride",
 }
 
 # DocType JS overrides
