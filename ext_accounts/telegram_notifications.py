@@ -8,59 +8,79 @@ from ext_accounts.telegram_bot import send_message, get_chat_id_for_party
 
 def get_party_gl_balance(party_type, party, company):
     """
-    Party ning GL balansini hisoblash.
-    Natija: + bo'lsa biz qarzdormiz, - bo'lsa u bizga qarzdor.
-
-    Supplier uchun: credit - debit (payable account bo'yicha)
-    Customer uchun: debit - credit (receivable account bo'yicha)
-    Employee uchun: credit - debit (payable account bo'yicha)
+    Party ning GL balansini valyuta bo'yicha hisoblash.
+    Natija: {currency: balance} dict.
+    Customer uchun: musbat = bizga qarzdor.
+    Supplier/Employee uchun: musbat = biz qarzdormiz.
     """
     try:
-        result = frappe.db.sql("""
+        rows = frappe.db.sql("""
             SELECT
-                SUM(debit) - SUM(credit) AS balance
+                account_currency AS currency,
+                SUM(debit_in_account_currency) - SUM(credit_in_account_currency) AS balance
             FROM `tabGL Entry`
             WHERE party_type = %s
               AND party = %s
               AND company = %s
               AND is_cancelled = 0
+            GROUP BY account_currency
         """, (party_type, party, company), as_dict=True)
 
-        if result and result[0].balance is not None:
-            balance = flt(result[0].balance)
-            # Customer: debit-credit musbat = bizga qarzdor, manfiy = biz qarzdormiz
-            # Supplier/Employee: debit-credit musbat = biz qarzdormiz (ular bizga tovar bergan)
+        result = {}
+        for row in rows:
+            if row.balance is None:
+                continue
+            balance = flt(row.balance)
             if party_type == "Customer":
-                # Receivable: debit > credit = bizga qarzdor → manfiy ko'rsatamiz
-                return -balance
+                result[row.currency] = -balance
             else:
-                # Payable: credit > debit = biz qarzdormiz → musbat ko'rsatamiz
-                return balance
-        return 0.0
+                result[row.currency] = balance
+        return result
     except Exception as e:
         frappe.log_error(f"GL balans xatosi: {str(e)}", "Telegram Notifications")
-        return 0.0
+        return {}
+
+
+DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 
 
 def format_currency_amount(amount, currency):
     """Summa + valyuta formatlash"""
     abs_amount = abs(flt(amount))
     if currency == "USD":
-        return f"{abs_amount:,.2f} USD"
+        return f"{abs_amount:,.2f} $"
     elif currency == "UZS":
-        return f"{abs_amount:,.0f} UZS"
+        return f"{abs_amount:,.0f} so'm"
     else:
         return f"{abs_amount:,.2f} {currency}"
 
 
-def format_balance_line(balance, currency):
-    """Qarzdorlik satrini formatlash"""
-    if flt(balance) == 0:
-        return "0"
-    elif flt(balance) > 0:
-        return f"+{format_currency_amount(balance, currency)}"
-    else:
-        return f"-{format_currency_amount(balance, currency)}"
+def format_balance_line(balances, party_type):
+    """
+    Qarzdorlik satrini formatlash.
+    balances: {currency: balance} dict
+    """
+    if not balances or all(flt(v) == 0 for v in balances.values()):
+        return "✅ Hisob-kitob yo'q"
+
+    lines = []
+    for currency, balance in balances.items():
+        b = flt(balance)
+        if b == 0:
+            continue
+        amount_str = format_currency_amount(b, currency)
+        if b > 0:
+            if party_type == "Customer":
+                lines.append(f"📌 Sizning qarzingiz: <b>{amount_str}</b>")
+            else:
+                lines.append(f"📌 Bizning qarzimiz: <b>{amount_str}</b>")
+        else:
+            if party_type == "Customer":
+                lines.append(f"📌 Bizning qarzimiz: <b>{amount_str}</b>")
+            else:
+                lines.append(f"📌 Sizning qarzingiz: <b>{amount_str}</b>")
+
+    return "\n".join(lines) if lines else "✅ Hisob-kitob yo'q"
 
 
 def send_notification(party_type, party, company, message):
@@ -88,27 +108,34 @@ def notify_purchase_invoice(doc, method=None):
         return
 
     # Itemlar ro'yxati
-    items_text = ""
-    for item in doc.items:
+    items_lines = []
+    for i, item in enumerate(doc.items, 1):
         qty = flt(item.qty)
         rate = flt(item.valuation_rate or item.rate)
         amount = flt(item.amount)
-        items_text += (
-            f"\n• {item.item_name} — "
-            f"{qty:g} dona × {format_currency_amount(rate, currency)} = "
-            f"{format_currency_amount(amount, currency)}"
+        items_lines.append(
+            f"{i}. <b>{item.item_name}</b>\n"
+            f"   {qty:g} dona × {format_currency_amount(rate, currency)}"
+            f" = <b>{format_currency_amount(amount, currency)}</b>"
         )
+    items_text = "\n".join(items_lines)
 
     total = format_currency_amount(flt(doc.grand_total), currency)
     balance = get_party_gl_balance(party_type, party, company)
-    balance_text = format_balance_line(balance, currency)
+    balance_text = format_balance_line(balance, party_type)
 
     message = (
         f"📦 <b>Sizdan mahsulot qabul qilindi</b>\n"
+        f"{DIVIDER}\n"
+        f"🏢 {doc.company}\n"
         f"📄 {doc.name}\n"
-        f"{items_text}\n\n"
-        f"<b>Jami:</b> {total}\n\n"
-        f"💰 <b>Joriy hisobingiz:</b> {balance_text}"
+        f"📅 {doc.posting_date}\n"
+        f"{DIVIDER}\n"
+        f"{items_text}\n"
+        f"{DIVIDER}\n"
+        f"💵 Jami: <b>{total}</b>\n"
+        f"{DIVIDER}\n"
+        f"{balance_text}"
     )
 
     send_message(chat_id, message)
@@ -131,27 +158,34 @@ def notify_sales_invoice(doc, method=None):
         return
 
     # Itemlar ro'yxati
-    items_text = ""
-    for item in doc.items:
+    items_lines = []
+    for i, item in enumerate(doc.items, 1):
         qty = flt(item.qty)
         rate = flt(item.rate)
         amount = flt(item.amount)
-        items_text += (
-            f"\n• {item.item_name} — "
-            f"{qty:g} dona × {format_currency_amount(rate, currency)} = "
-            f"{format_currency_amount(amount, currency)}"
+        items_lines.append(
+            f"{i}. <b>{item.item_name}</b>\n"
+            f"   {qty:g} dona × {format_currency_amount(rate, currency)}"
+            f" = <b>{format_currency_amount(amount, currency)}</b>"
         )
+    items_text = "\n".join(items_lines)
 
     total = format_currency_amount(flt(doc.grand_total), currency)
     balance = get_party_gl_balance(party_type, party, company)
-    balance_text = format_balance_line(balance, currency)
+    balance_text = format_balance_line(balance, party_type)
 
     message = (
         f"🛒 <b>Sizga mahsulot sotildi</b>\n"
+        f"{DIVIDER}\n"
+        f"🏢 {doc.company}\n"
         f"📄 {doc.name}\n"
-        f"{items_text}\n\n"
-        f"<b>Jami:</b> {total}\n\n"
-        f"💰 <b>Joriy hisobingiz:</b> {balance_text}"
+        f"📅 {doc.posting_date}\n"
+        f"{DIVIDER}\n"
+        f"{items_text}\n"
+        f"{DIVIDER}\n"
+        f"💵 Jami: <b>{total}</b>\n"
+        f"{DIVIDER}\n"
+        f"{balance_text}"
     )
 
     send_message(chat_id, message)
@@ -186,7 +220,7 @@ def notify_payment_entry(doc, method=None):
 
     amount_text = format_currency_amount(amount, currency)
     balance = get_party_gl_balance(party_type, party, company)
-    balance_text = format_balance_line(balance, currency)
+    balance_text = format_balance_line(balance, party_type)
 
     # Xabar matni: payment_type va party_type ga qarab
     if party_type == "Employee":
@@ -199,23 +233,28 @@ def notify_payment_entry(doc, method=None):
     elif party_type == "Supplier":
         if doc.payment_type == "Pay":
             emoji = "💸"
-            action = "Sizga pul berildi"
+            action = "Sizga to'lov amalga oshirildi"
         else:
             emoji = "💰"
-            action = "Sizdan pul qabul qilindi"
+            action = "Sizdan to'lov qabul qilindi"
     else:  # Customer
         if doc.payment_type == "Receive":
             emoji = "💰"
-            action = "Sizdan pul qabul qilindi"
+            action = "Sizdan to'lov qabul qilindi"
         else:
             emoji = "💸"
-            action = "Sizga pul berildi"
+            action = "Sizga pul qaytarildi"
 
     message = (
         f"{emoji} <b>{action}</b>\n"
+        f"{DIVIDER}\n"
+        f"🏢 {doc.company}\n"
         f"📄 {doc.name}\n"
-        f"<b>Miqdor:</b> {amount_text}\n\n"
-        f"💰 <b>Joriy hisobingiz:</b> {balance_text}"
+        f"📅 {doc.posting_date}\n"
+        f"{DIVIDER}\n"
+        f"💵 To'lov miqdori: <b>{amount_text}</b>\n"
+        f"{DIVIDER}\n"
+        f"{balance_text}"
     )
 
     send_message(chat_id, message)
@@ -241,14 +280,18 @@ def notify_salary_slip(doc, method=None):
     amount_text = format_currency_amount(net_pay, currency)
 
     balance = get_party_gl_balance(party_type, party, company)
-    balance_text = format_balance_line(balance, currency)
+    balance_text = format_balance_line(balance, party_type)
 
     message = (
-        f"📋 <b>Siz oylik hisoblandi</b>\n"
+        f"📋 <b>Oylik maosh hisoblandi</b>\n"
+        f"{DIVIDER}\n"
+        f"🏢 {doc.company}\n"
         f"📄 {doc.name}\n"
         f"📅 {doc.start_date} — {doc.end_date}\n"
-        f"<b>Oylik miqdori:</b> {amount_text}\n\n"
-        f"💰 <b>Joriy hisobingiz:</b> {balance_text}"
+        f"{DIVIDER}\n"
+        f"💵 Oylik miqdori: <b>{amount_text}</b>\n"
+        f"{DIVIDER}\n"
+        f"{balance_text}"
     )
 
     send_message(chat_id, message)

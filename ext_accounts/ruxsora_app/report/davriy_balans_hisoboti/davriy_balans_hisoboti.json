@@ -1,0 +1,25 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2025-03-04 10:00:00.000000",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "is_standard": "Yes",
+ "modified": "2025-03-04 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ruxsora_app",
+ "name": "Davriy Balans Hisoboti",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "GL Entry",
+ "report_name": "Davriy Balans Hisoboti",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "Accounts Manager"},
+  {"role": "Accounts User"},
+  {"role": "System Manager"}
+ ]
+}
