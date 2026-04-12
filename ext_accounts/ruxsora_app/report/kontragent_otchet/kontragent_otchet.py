@@ -218,14 +218,15 @@ def calculate_opening_balance(party_type, party, from_date, currency):
 
     Credit calculation:
     + Journal Entry (Opening Entry) Credit
-    + Purchase Invoice
+    + Purchase Invoice Credit
+    + Sales Invoice Credit (sales return/vozvrat)
     + Payment Entry Receive
     + Journal Entry (Journal Entry) Credit
-    + Salary Slip (only for UZS)
 
     Debit calculation:
     + Journal Entry (Opening Entry) Debit
-    + Sales Invoice
+    + Sales Invoice Debit
+    + Purchase Invoice Debit (purchase return/vozvrat)
     + Payment Entry Pay
     + Journal Entry (Journal Entry) Debit
     """
@@ -262,9 +263,21 @@ def calculate_opening_balance(party_type, party, from_date, currency):
           )
     """, (from_date, party_type, party, currency))[0][0] or 0
 
-    # Purchase Invoice
+    # Purchase Invoice Credit (normal purchase)
     pi_credit = frappe.db.sql("""
         SELECT IFNULL(SUM(credit_in_account_currency), 0)
+        FROM `tabGL Entry`
+        WHERE posting_date < %s
+          AND party_type = %s
+          AND party = %s
+          AND voucher_type = 'Purchase Invoice'
+          AND account_currency = %s
+          AND is_cancelled = 0
+    """, (from_date, party_type, party, currency))[0][0] or 0
+
+    # Purchase Invoice Debit (purchase return/vozvrat)
+    pi_debit = frappe.db.sql("""
+        SELECT IFNULL(SUM(debit_in_account_currency), 0)
         FROM `tabGL Entry`
         WHERE posting_date < %s
           AND party_type = %s
@@ -289,6 +302,20 @@ def calculate_opening_balance(party_type, party, from_date, currency):
     """, (from_date, party_type, party, currency))[0][0] or 0
 
     total_credit = je_opening_credit + je_journal_credit + pi_credit + pe_receive_credit
+
+    # Sales Invoice Credit (sales return/vozvrat)
+    si_credit = frappe.db.sql("""
+        SELECT IFNULL(SUM(credit_in_account_currency), 0)
+        FROM `tabGL Entry`
+        WHERE posting_date < %s
+          AND party_type = %s
+          AND party = %s
+          AND voucher_type = 'Sales Invoice'
+          AND account_currency = %s
+          AND is_cancelled = 0
+    """, (from_date, party_type, party, currency))[0][0] or 0
+
+    total_credit += si_credit
 
     # Debit calculations
     # Journal Entry Opening Entry Debit
@@ -349,7 +376,7 @@ def calculate_opening_balance(party_type, party, from_date, currency):
           AND ge.is_cancelled = 0
     """, (from_date, party_type, party, currency))[0][0] or 0
 
-    total_debit = je_opening_debit + je_journal_debit + si_debit + pe_pay_debit
+    total_debit = je_opening_debit + je_journal_debit + si_debit + pe_pay_debit + pi_debit
 
     # Calculate net and determine credit/debit
     net = total_credit - total_debit
@@ -367,15 +394,16 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
     Credit calculation:
     + Opening Entry Credit
     + Journal Entry Credit
-    + Purchase Invoice
+    + Purchase Invoice Credit
+    + Sales Invoice Credit (sales return/vozvrat)
     + Payment Entry Receive
-    + Salary Slip (only for UZS)
 
     Debit calculation:
     + Opening Entry Debit
     + Journal Entry Debit
     + Payment Entry Pay
-    + Sales Invoice
+    + Sales Invoice Debit
+    + Purchase Invoice Debit (purchase return/vozvrat)
     """
 
     # Opening Entry Credit
@@ -412,9 +440,22 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           )
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 
-    # Purchase Invoice Credit
+    # Purchase Invoice Credit (normal purchase)
     pi_credit = frappe.db.sql("""
         SELECT IFNULL(SUM(credit_in_account_currency), 0)
+        FROM `tabGL Entry`
+        WHERE posting_date >= %s
+          AND posting_date <= %s
+          AND party_type = %s
+          AND party = %s
+          AND voucher_type = 'Purchase Invoice'
+          AND account_currency = %s
+          AND is_cancelled = 0
+    """, (from_date, to_date, party_type, party, currency))[0][0] or 0
+
+    # Purchase Invoice Debit (purchase return/vozvrat)
+    pi_debit = frappe.db.sql("""
+        SELECT IFNULL(SUM(debit_in_account_currency), 0)
         FROM `tabGL Entry`
         WHERE posting_date >= %s
           AND posting_date <= %s
@@ -440,7 +481,20 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           AND ge.is_cancelled = 0
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 
-    total_credit = opening_credit + je_credit + pi_credit + pe_receive_credit
+    # Sales Invoice Credit (sales return/vozvrat)
+    si_credit = frappe.db.sql("""
+        SELECT IFNULL(SUM(credit_in_account_currency), 0)
+        FROM `tabGL Entry`
+        WHERE posting_date >= %s
+          AND posting_date <= %s
+          AND party_type = %s
+          AND party = %s
+          AND voucher_type = 'Sales Invoice'
+          AND account_currency = %s
+          AND is_cancelled = 0
+    """, (from_date, to_date, party_type, party, currency))[0][0] or 0
+
+    total_credit = opening_credit + je_credit + pi_credit + pe_receive_credit + si_credit
 
     # Debit calculations
     # Opening Entry Debit
@@ -505,6 +559,6 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           AND is_cancelled = 0
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 
-    total_debit = opening_debit + je_debit + pe_pay_debit + si_debit
+    total_debit = opening_debit + je_debit + pe_pay_debit + si_debit + pi_debit
 
     return {"credit": total_credit, "debit": total_debit}
