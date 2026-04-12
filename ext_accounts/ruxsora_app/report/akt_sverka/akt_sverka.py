@@ -380,13 +380,14 @@ def get_data(filters):
         # Opening balance qatorini hisobga olmasdan total hisoblash
         total_credit = sum(flt(row.get('credit', 0)) for row in data if row.get('voucher_type') != 'Boshlang\'ich qoldiq')
         total_debit = sum(flt(row.get('debit', 0)) for row in data if row.get('voucher_type') != 'Boshlang\'ich qoldiq')
+        total_qty = sum(flt(row.get('qty', 0)) for row in data if row.get('voucher_type') != 'Boshlang\'ich qoldiq')
 
         data.append({
             "posting_date": to_date,
             "voucher_type": "Total",
             "voucher_no": "",
             "item_name": "",
-            "qty": None,
+            "qty": format_qty(total_qty),
             "rate": None,
             "currency": party_currency,
             "credit": total_credit,
