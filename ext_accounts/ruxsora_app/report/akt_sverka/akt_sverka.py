@@ -60,106 +60,19 @@ def get_data(filters):
 
     party_currency = party_currency[0][0] if party_currency else 'UZS'
 
-    # Boshlang'ich qoldiq (до from_date) - party valyutasida, cancelled'siz
-    # Formula: PI - SI + PE receive - PE pay + JE credit - JE debit + Opening credit - Opening debit + Salary
-
-    # Purchase Invoice (PI) - credit (bizning qarzimiz oshadi)
-    opening_pi = frappe.db.sql("""
-        SELECT IFNULL(SUM(credit_in_account_currency), 0)
+    # Opening balance = pure net GL sum (credit - debit) before from_date.
+    # Why: oldingi formula voucher_type bo'yicha ajratilgan edi va Sales Invoice credit (vozvrat),
+    # Purchase Invoice debit (vozvrat), shuningdek Exchange Rate Revaluation, Period Closing Voucher
+    # kabi voucher_type'larni tashlab ketar edi. Net GL sum hammasini qamrab oladi.
+    opening_balance = flt(frappe.db.sql("""
+        SELECT IFNULL(SUM(credit_in_account_currency - debit_in_account_currency), 0)
         FROM `tabGL Entry`
         WHERE posting_date < %s
           AND party_type = %s
           AND party = %s
-          AND voucher_type = 'Purchase Invoice'
           AND account_currency = %s
           AND is_cancelled = 0
-    """, (from_date, party_type, party, party_currency))[0][0]
-
-    # Sales Invoice (SI) - debit (ular bizga qarzdor)
-    opening_si = frappe.db.sql("""
-        SELECT IFNULL(SUM(debit_in_account_currency), 0)
-        FROM `tabGL Entry`
-        WHERE posting_date < %s
-          AND party_type = %s
-          AND party = %s
-          AND voucher_type = 'Sales Invoice'
-          AND account_currency = %s
-          AND is_cancelled = 0
-    """, (from_date, party_type, party, party_currency))[0][0]
-
-    # Payment Entry Receive - credit (biz pul oldik)
-    opening_pe_receive = frappe.db.sql("""
-        SELECT IFNULL(SUM(ge.credit_in_account_currency), 0)
-        FROM `tabGL Entry` ge
-        INNER JOIN `tabPayment Entry` pe ON ge.voucher_no = pe.name
-        WHERE ge.posting_date < %s
-          AND ge.party_type = %s
-          AND ge.party = %s
-          AND ge.voucher_type = 'Payment Entry'
-          AND pe.payment_type = 'Receive'
-          AND ge.account_currency = %s
-          AND ge.is_cancelled = 0
-    """, (from_date, party_type, party, party_currency))[0][0]
-
-    # Payment Entry Pay - debit (biz pul to'ladik)
-    opening_pe_pay = frappe.db.sql("""
-        SELECT IFNULL(SUM(ge.debit_in_account_currency), 0)
-        FROM `tabGL Entry` ge
-        INNER JOIN `tabPayment Entry` pe ON ge.voucher_no = pe.name
-        WHERE ge.posting_date < %s
-          AND ge.party_type = %s
-          AND ge.party = %s
-          AND ge.voucher_type = 'Payment Entry'
-          AND pe.payment_type = 'Pay'
-          AND ge.account_currency = %s
-          AND ge.is_cancelled = 0
-    """, (from_date, party_type, party, party_currency))[0][0]
-
-    # Journal Entry (JE) credit va debit - opening entry emas
-    opening_je = frappe.db.sql("""
-        SELECT
-            IFNULL(SUM(ge.credit_in_account_currency), 0) as je_credit,
-            IFNULL(SUM(ge.debit_in_account_currency), 0) as je_debit
-        FROM `tabGL Entry` ge
-        INNER JOIN `tabJournal Entry` je ON ge.voucher_no = je.name
-        WHERE ge.posting_date < %s
-          AND ge.party_type = %s
-          AND ge.party = %s
-          AND ge.voucher_type = 'Journal Entry'
-          AND je.is_opening = 'No'
-          AND ge.account_currency = %s
-          AND ge.is_cancelled = 0
-    """, (from_date, party_type, party, party_currency), as_dict=True)[0]
-
-    opening_je_credit = opening_je.get('je_credit', 0)
-    opening_je_debit = opening_je.get('je_debit', 0)
-
-    # Opening Entry credit va debit
-    opening_entry = frappe.db.sql("""
-        SELECT
-            IFNULL(SUM(ge.credit_in_account_currency), 0) as op_credit,
-            IFNULL(SUM(ge.debit_in_account_currency), 0) as op_debit
-        FROM `tabGL Entry` ge
-        INNER JOIN `tabJournal Entry` je ON ge.voucher_no = je.name
-        WHERE ge.posting_date < %s
-          AND ge.party_type = %s
-          AND ge.party = %s
-          AND ge.voucher_type = 'Journal Entry'
-          AND je.is_opening = 'Yes'
-          AND ge.account_currency = %s
-          AND ge.is_cancelled = 0
-    """, (from_date, party_type, party, party_currency), as_dict=True)[0]
-
-    opening_op_credit = opening_entry.get('op_credit', 0)
-    opening_op_debit = opening_entry.get('op_debit', 0)
-
-    # Formula: PI - SI + PE receive - PE pay + JE credit - JE debit + OP credit - OP debit
-    opening_balance = (
-        flt(opening_pi) - flt(opening_si) +
-        flt(opening_pe_receive) - flt(opening_pe_pay) +
-        flt(opening_je_credit) - flt(opening_je_debit) +
-        flt(opening_op_credit) - flt(opening_op_debit)
-    )
+    """, (from_date, party_type, party, party_currency))[0][0])
 
     data = []
 
