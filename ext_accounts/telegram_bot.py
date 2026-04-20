@@ -100,7 +100,68 @@ def akt_sverka_keyboard():
     }
 
 
-# ─── Party qidirish ──────────────────────────────────────────────────────────
+# ─── Holat (state) boshqaruv ─────────────────────────────────────────────────
+
+CACHE_PREFIX = "tg_state:"
+CACHE_TTL = 300
+
+
+def _set_state(chat_id, state):
+    frappe.cache().set_value(f"{CACHE_PREFIX}{chat_id}", state, expires_in_sec=CACHE_TTL)
+
+
+def _get_state(chat_id):
+    return frappe.cache().get_value(f"{CACHE_PREFIX}{chat_id}") or ""
+
+
+def _clear_state(chat_id):
+    frappe.cache().delete_value(f"{CACHE_PREFIX}{chat_id}")
+
+
+# ─── Telefon va party qidirish ───────────────────────────────────────────────
+
+def normalize_phone(phone):
+    if not phone:
+        return ""
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+def find_party_by_phone(phone):
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return None
+
+    for doctype in ["Customer", "Supplier"]:
+        name_field = "customer_name" if doctype == "Customer" else "supplier_name"
+
+        row = frappe.db.get_value(
+            doctype,
+            {"contact_number": ["like", f"%{normalized}"]},
+            ["name", name_field],
+            as_dict=True
+        )
+        if row:
+            return {"doctype": doctype, "name": row.name, "display_name": row.get(name_field) or row.name}
+
+        contact = frappe.db.sql("""
+            SELECT dl.link_name
+            FROM `tabContact Phone` cp
+            JOIN `tabContact` c ON c.name = cp.parent
+            JOIN `tabDynamic Link` dl ON dl.parent = c.name
+            WHERE cp.phone LIKE %s
+              AND dl.link_doctype = %s
+              AND dl.parenttype = 'Contact'
+            LIMIT 1
+        """, (f"%{normalized}%", doctype), as_dict=True)
+
+        if contact:
+            party_name = contact[0].link_name
+            display = frappe.db.get_value(doctype, party_name, name_field) or party_name
+            return {"doctype": doctype, "name": party_name, "display_name": display}
+
+    return None
+
 
 def find_party_by_chat_id(chat_id):
     """chat_id bo'yicha Customer yoki Supplier topish"""
@@ -293,16 +354,21 @@ def _handle_message(chat_id, text):
         if party:
             send_message(
                 chat_id,
-                f"✅ Xush kelibsiz!\n\n👤 <b>{party['display_name']}</b>",
+                f"✅ Siz allaqachon ro'yxatdansiz!\n\n👤 <b>{party['display_name']}</b>",
                 reply_markup=main_menu_keyboard()
             )
         else:
-            send_message(chat_id, "❌ Siz tizimda topilmadingiz. Admin bilan bog'laning.")
+            _set_state(chat_id, "awaiting_phone")
+            send_message(
+                chat_id,
+                "👋 Salom! Tizimga kirish uchun telefon raqamingizni yuboring.\n\n"
+                "📱 Masalan: <code>998901234567</code> yoki <code>901234567</code>"
+            )
         return
 
     if text == "📊 Akt Sverka":
         if not party:
-            send_message(chat_id, "❌ Siz tizimda topilmadingiz. Admin bilan bog'laning.")
+            send_message(chat_id, "❌ Siz ro'yxatdan o'tmagansiz. /start bosing.")
             return
         send_message(
             chat_id,
@@ -311,8 +377,34 @@ def _handle_message(chat_id, text):
         )
         return
 
+    state = _get_state(chat_id)
+    if state == "awaiting_phone":
+        found = find_party_by_phone(text)
+        if found:
+            frappe.db.set_value(found["doctype"], found["name"], "telegram_chat_id", str(chat_id))
+            frappe.db.commit()
+            _clear_state(chat_id)
+            send_message(
+                chat_id,
+                f"✅ Muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n"
+                f"👤 <b>{found['display_name']}</b>\n\n"
+                f"Endi tranzaksiyalar haqida avtomatik xabar olasiz.",
+                reply_markup=main_menu_keyboard()
+            )
+        else:
+            send_message(
+                chat_id,
+                "❌ Bu telefon raqam tizimda topilmadi.\n\n"
+                "Boshqa raqam kiriting yoki admin bilan bog'laning."
+            )
+        return
+
     if not party:
-        send_message(chat_id, "❌ Siz tizimda topilmadingiz. Admin bilan bog'laning.")
+        _set_state(chat_id, "awaiting_phone")
+        send_message(
+            chat_id,
+            "Telefon raqamingizni yuboring:\n\n📱 Masalan: <code>998901234567</code>"
+        )
 
 
 # ─── Webhook sozlash ─────────────────────────────────────────────────────────
