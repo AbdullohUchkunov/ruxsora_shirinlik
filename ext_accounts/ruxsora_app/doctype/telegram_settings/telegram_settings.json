@@ -1,18 +1,22 @@
 {
- "actions": [],
+ "actions": [
+  {
+   "action_label": "Set Webhook",
+   "action": "Server Action",
+   "server_action": "ext_accounts.telegram_bot.set_webhook"
+  }
+ ],
  "creation": "2025-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "telegram_token",
-  "webhook_url",
-  "section_parties",
-  "parties"
+  "webhook_url"
  ],
  "fields": [
   {
    "fieldname": "telegram_token",
-   "fieldtype": "Data",
+   "fieldtype": "Password",
    "label": "Telegram Bot Token",
    "reqd": 1,
    "description": "BotFather dan olingan token (masalan: 123456789:AABBccDDee...)"
@@ -22,26 +26,15 @@
    "fieldtype": "Data",
    "label": "Webhook URL",
    "description": "Telegram webhook manzili. Misol: https://yourdomain.com/api/method/ext_accounts.telegram_bot.handle_update"
-  },
-  {
-   "fieldname": "section_parties",
-   "fieldtype": "Section Break",
-   "label": "Ro'yxatdan o'tgan foydalanuvchilar"
-  },
-  {
-   "fieldname": "parties",
-   "fieldtype": "Table",
-   "label": "Foydalanuvchilar",
-   "options": "Telegram Bot Party"
   }
  ],
  "index_web_pages_for_search": 0,
  "is_single": 1,
  "links": [],
- "modified": "2025-01-01 00:00:00.000000",
+ "modified": "2025-04-20 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ruxsora App",
- "name": "Telegram Bot Sozlamasi",
+ "name": "Telegram Settings",
  "owner": "Administrator",
  "permissions": [
   {
