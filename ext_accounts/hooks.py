@@ -7,7 +7,8 @@ app_license = "mit"
 
 # Fixtures
 fixtures = [
-    {"dt": "Custom Field", "filters": [["dt", "=", "Stock Entry"], ["fieldname", "=", "custom_production_entry"]]}
+    {"dt": "Custom Field", "filters": [["dt", "=", "Stock Entry"], ["fieldname", "=", "custom_production_entry"]]},
+    {"dt": "Custom Field", "filters": [["dt", "in", ["Customer", "Supplier"]], ["fieldname", "in", ["contact_number", "telegram_chat_id"]]]},
 ]
 
 # Apps
