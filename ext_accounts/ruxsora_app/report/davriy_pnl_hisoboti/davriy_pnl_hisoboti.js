@@ -1,25 +1,10 @@
 frappe.query_reports["Davriy PnL Hisoboti"] = {
 	filters: [
 		{
-			fieldname: "from_date",
-			label: __("Dan"),
-			fieldtype: "Date",
-			default: frappe.datetime.add_months(frappe.datetime.get_today(), -1),
-			reqd: 1,
-		},
-		{
-			fieldname: "to_date",
-			label: __("Gacha"),
+			fieldname: "report_date",
+			label: __("Sana"),
 			fieldtype: "Date",
 			default: frappe.datetime.get_today(),
-			reqd: 1,
-		},
-		{
-			fieldname: "period",
-			label: __("Davr turi"),
-			fieldtype: "Select",
-			options: "Monthly\nWeekly\nDaily",
-			default: "Monthly",
 			reqd: 1,
 		},
 		{
@@ -28,19 +13,15 @@ frappe.query_reports["Davriy PnL Hisoboti"] = {
 			fieldtype: "Link",
 			options: "Currency",
 			default: "USD",
+			read_only: 1,
 		},
 		{
 			fieldname: "company",
 			label: __("Kompaniya"),
 			fieldtype: "Link",
 			options: "Company",
-			default: frappe.defaults.get_user_default("Company"),
-		},
-		{
-			fieldname: "accumulated_values",
-			label: __("Accumulated Values"),
-			fieldtype: "Check",
-			default: 0,
+			default: "Ruxsora",
+			read_only: 1,
 		},
 	],
 

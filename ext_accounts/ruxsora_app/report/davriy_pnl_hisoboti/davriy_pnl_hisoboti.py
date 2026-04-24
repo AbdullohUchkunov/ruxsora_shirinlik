@@ -1,21 +1,19 @@
 """
-Davriy PnL Hisoboti — Profit & Loss (Daily / Weekly / Monthly)
+Davriy PnL Hisoboti — Kunlik operativ Profit & Loss.
 
-All monetary amounts come from GL Entry (account_currency = target currency).
-Item-group breakdown uses proportional distribution via SI Items / SLE.
+Tanlangan sana (report_date) bo'yicha 4 ta ustun chiqaradi:
+  • [oy_boshi .. sana-3]  agregat
+  • [sana-2]              bitta kun
+  • [sana-1]              bitta kun
+  • [sana]                bitta kun (bugun)
 
-Tree structure:
-  0  4000-Income  |  5100-Direct Exp  |  [sep]  |  Gross Profit  |  Indirect Exp  |  Net Profit
-  1  4100 parent  |  5110 parent      |          |  by item_group |  accounts
-  2  4110 leaf    |  5111-COGS        |
-  3  item groups  |  item groups      |
-                  |  5119-StockAdj    |
-                  |  item groups      |
+Oldingi oyga tegadigan ustunlar va bo'sh agregat ustun olib tashlanadi.
+Shu sababli oyning 1-3 kunlari 1-3 ustun, 4-kundan boshlab to'liq 4 ustun.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, getdate, add_days, add_months, get_first_day, get_last_day
+from frappe.utils import flt, getdate, add_days, get_first_day
 from collections import defaultdict
 
 
@@ -33,50 +31,32 @@ def execute(filters=None):
 # ─── Validation ───────────────────────────────────────────────────────────────
 
 def _validate(filters):
-	if not filters.get("from_date") or not filters.get("to_date"):
-		frappe.throw(_("Dan va Gacha sanalari majburiy"))
-	if getdate(filters["from_date"]) > getdate(filters["to_date"]):
-		frappe.throw(_("'Dan' sanasi 'Gacha' sanasidan katta bo'lmasligi kerak"))
+	if not filters.get("report_date"):
+		frappe.throw(_("Sana majburiy"))
 
 
 # ─── Period generation ────────────────────────────────────────────────────────
 
 def _get_periods(filters):
-	from_date = getdate(filters["from_date"])
-	to_date   = getdate(filters["to_date"])
-	ptype     = filters.get("period", "Monthly")
-	if ptype == "Daily":   return _daily_periods(from_date, to_date)
-	if ptype == "Weekly":  return _weekly_periods(from_date, to_date)
-	return _monthly_periods(from_date, to_date)
+	rd          = getdate(filters["report_date"])
+	month_start = get_first_day(rd)
+	periods     = []
 
+	agg_end = add_days(rd, -3)
+	if agg_end >= month_start:
+		if month_start == agg_end:
+			label = month_start.strftime("%d.%m.%Y")
+		else:
+			label = f"{month_start.strftime('%d.%m')}-{agg_end.strftime('%d.%m.%Y')}"
+		periods.append({"key": "p_agg", "label": label,
+		                "from_date": str(month_start), "to_date": str(agg_end)})
 
-def _monthly_periods(from_date, to_date):
-	periods, cursor = [], get_first_day(from_date)
-	while cursor <= to_date:
-		p_end = min(get_last_day(cursor), to_date)
-		periods.append({"key": cursor.strftime("m_%Y_%m"), "label": cursor.strftime("%b %Y"),
-		                "from_date": str(max(cursor, from_date)), "to_date": str(p_end)})
-		cursor = get_first_day(add_months(cursor, 1))
-	return periods
+	for offset, key in ((-2, "p_d2"), (-1, "p_d1"), (0, "p_d0")):
+		d = add_days(rd, offset)
+		if d >= month_start:
+			periods.append({"key": key, "label": d.strftime("%d.%m.%Y"),
+			                "from_date": str(d), "to_date": str(d)})
 
-
-def _weekly_periods(from_date, to_date):
-	periods, cursor, week = [], from_date, 1
-	while cursor <= to_date:
-		p_end = min(add_days(cursor, 6), to_date)
-		periods.append({"key": f"w_{week:02d}",
-		                "label": f"Hafta {week} ({cursor.strftime('%d.%m')}-{p_end.strftime('%d.%m')})",
-		                "from_date": str(cursor), "to_date": str(p_end)})
-		cursor = add_days(p_end, 1); week += 1
-	return periods
-
-
-def _daily_periods(from_date, to_date):
-	periods, cursor = [], from_date
-	while cursor <= to_date:
-		periods.append({"key": cursor.strftime("d_%Y_%m_%d"), "label": cursor.strftime("%d.%m.%Y"),
-		                "from_date": str(cursor), "to_date": str(cursor)})
-		cursor = add_days(cursor, 1)
 	return periods
 
 
@@ -93,15 +73,17 @@ def _get_columns(periods):
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def _get_data(filters, periods):
-	currency    = filters.get("currency") or "USD"
-	company     = filters.get("company") or frappe.defaults.get_user_default("Company")
-	accumulated = cint(filters.get("accumulated_values"))
+	currency = filters.get("currency") or "USD"
+	company  = filters.get("company")  or frappe.defaults.get_user_default("Company")
+
+	from_date = min(getdate(p["from_date"]) for p in periods)
+	to_date   = max(getdate(p["to_date"])   for p in periods)
 
 	base_params = {
 		"currency":  currency,
 		"company":   company,
-		"from_date": filters["from_date"],
-		"to_date":   filters["to_date"],
+		"from_date": str(from_date),
+		"to_date":   str(to_date),
 		"na":        _("Kategoriyasiz"),
 	}
 
@@ -121,16 +103,6 @@ def _get_data(filters, periods):
 		acc: _pivot_groups(ig_rows, periods)
 		for acc, ig_rows in income_nested.items()
 	}
-
-	# ── Optional accumulated (running totals) ──────────────────────────────────
-	if accumulated:
-		income_pivoted = {
-			acc: {ig: _accumulate(pd, periods) for ig, pd in ig_dict.items()}
-			for acc, ig_dict in income_pivoted.items()
-		}
-		cogs_ig   = {ig: _accumulate(pd, periods) for ig, pd in cogs_ig.items()}
-		s_adj_ig  = {ig: _accumulate(pd, periods) for ig, pd in s_adj_ig.items()}
-		indir_acc = {ig: _accumulate(pd, periods) for ig, pd in indir_acc.items()}
 
 	# ── Aggregate income across accounts for Gross Profit calc ────────────────
 	rev_by_ig = {}
@@ -488,14 +460,6 @@ def _pivot_groups(flat_rows, periods):
 				res[r["grp"]][key] += flt(r["amount"])
 				break
 	return {g: dict(pd) for g, pd in res.items() if any(pd.values())}
-
-
-def _accumulate(period_dict, periods):
-	result, running = {}, 0.0
-	for p in periods:
-		running        += flt(period_dict.get(p["key"], 0))
-		result[p["key"]] = running
-	return result
 
 
 def _sum_groups(g):
