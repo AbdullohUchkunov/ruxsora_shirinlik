@@ -427,13 +427,17 @@
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .mds-mb-svg {
 	width: 100%;
+	max-width: 100%;
 	height: auto;
 	display: block;
-	overflow: visible;
+	overflow: hidden;
 }
 
 .mds-mb-segment {
@@ -474,7 +478,9 @@
 
 .mds-mb-legend {
 	width: 100%;
+	max-width: 100%;
 	border-collapse: collapse;
+	table-layout: fixed;
 	font-size: 13px;
 }
 
@@ -507,9 +513,12 @@
 	color: #314056;
 	font-weight: 600;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .mds-mb-amount-cell {
+	width: 86px;
 	text-align: right;
 	color: #374151;
 	font-variant-numeric: tabular-nums;
@@ -518,6 +527,7 @@
 }
 
 .mds-mb-pct-cell {
+	width: 62px;
 	text-align: right;
 	white-space: nowrap;
 	padding-right: 2px;

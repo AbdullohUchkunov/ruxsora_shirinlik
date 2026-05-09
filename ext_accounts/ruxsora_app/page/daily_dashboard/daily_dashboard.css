@@ -112,19 +112,23 @@
 .daily-dashboard-clients {
 	display: grid;
 	grid-template-columns: repeat(8, minmax(0, 1fr));
+	grid-auto-rows: minmax(30px, auto);
 	gap: 8px 6px;
 	margin: 12px 12px 8px;
-	padding: 10px 10px 78px;
+	padding: 10px 10px 16px;
 	border: 1px solid #474747;
 	border-radius: 12px;
 	background: #f8f8f9;
 	align-content: start;
+	min-height: 128px;
+	max-height: 260px;
 	overflow-y: auto;
 	overflow-x: hidden;
 	scrollbar-gutter: stable;
 }
 
 .daily-dashboard-chip {
+	min-height: 30px;
 	padding: 6px 8px;
 	border: 1px solid #555;
 	border-radius: 6px;

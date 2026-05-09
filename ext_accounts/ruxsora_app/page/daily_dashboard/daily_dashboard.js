@@ -19,7 +19,6 @@ ext_accounts.ui.DailyDashboardPage = class DailyDashboardPage {
 			client: null,
 			day: null,
 		};
-		this.clientListHeight = null;
 
 		this.make_layout();
 		this.bind_events();
@@ -193,13 +192,6 @@ ext_accounts.ui.DailyDashboardPage = class DailyDashboardPage {
 				)
 				.join("")
 		);
-
-		if (!this.clientListHeight) {
-			this.clientListHeight = Math.ceil(this.$clients.outerHeight() || 0);
-		}
-		if (this.clientListHeight) {
-			this.$clients.css("height", `${this.clientListHeight}px`);
-		}
 
 		this.$clients.find("[data-client]").on("click", (e) => {
 			const client = String($(e.currentTarget).data("client"));

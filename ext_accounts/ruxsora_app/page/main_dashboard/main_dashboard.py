@@ -574,7 +574,7 @@ def _get_manufacturing_cost_total(year: str, month: str | None = None) -> float:
 def _get_margin_bonus_data(year: str, month: str) -> dict[str, Any]:
     totals = _get_period_totals(year, month)
     report_values = _get_sales_expense_group_breakdown(year, month)
-    sales_value = flt(report_values["sales"]) or flt(totals["sales_amount"])
+    sales_value = flt(totals["sales_amount"])
     expense_groups = report_values
     stock_expenses_value = flt(expense_groups["stock_expenses"])
     production_expenses_value = flt(expense_groups["production_expenses"])
@@ -649,7 +649,6 @@ def _get_sales_expense_group_breakdown(year: str, month: str) -> dict[str, float
     }
     key_by_account = {
         "4000": "sales",
-        "4110": "sales",
         "5100": "stock_expenses",
         "52001": "production_expenses",
         "52002": "admin_expenses",
