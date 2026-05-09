@@ -1,0 +1,527 @@
+.layout-main-section-wrapper.supplier-dashboard-layout {
+	padding: 0;
+	background: #edf0f2;
+}
+
+.supplier-dashboard-page-head {
+	display: none;
+}
+
+.supplier-dashboard-screen {
+	padding: 16px 18px 24px;
+}
+
+.supplier-dashboard-shell {
+	overflow: hidden;
+	border-radius: 4px;
+	background: #f8f8f8;
+	box-shadow: 0 10px 30px rgba(49, 65, 91, 0.14);
+}
+
+.supplier-dashboard-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 14px 18px;
+	background: linear-gradient(180deg, #07b44d 0%, #02a543 100%);
+	color: #fff;
+}
+
+.supplier-dashboard-brand {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.supplier-dashboard-logo {
+	display: grid;
+	place-items: center;
+	width: 42px;
+	height: 42px;
+	border: 2px solid rgba(255, 255, 255, 0.7);
+	border-radius: 999px;
+	background: radial-gradient(circle at 30% 30%, #f0fff4, #3aa65f);
+	color: #20733b;
+	font-size: 21px;
+	font-weight: 800;
+}
+
+.supplier-dashboard-title {
+	font-size: 18px;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+.supplier-dashboard-subtitle {
+	margin-top: 2px;
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	opacity: 0.95;
+}
+
+.supplier-dashboard-info {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border: 2px solid rgba(255, 255, 255, 0.78);
+	border-radius: 999px;
+	font-size: 20px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.supplier-dashboard-body {
+	display: grid;
+	grid-template-columns: 180px minmax(0, 1fr);
+	gap: 18px;
+	padding: 14px 14px 18px;
+}
+
+.supplier-dashboard-view-switch {
+	padding: 0 14px 0;
+}
+
+.supplier-dashboard-view-chip-group {
+	display: inline-flex;
+	gap: 8px;
+	padding: 6px;
+	border: 1px solid #dbe4f1;
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.88);
+	box-shadow: 0 8px 18px rgba(31, 48, 82, 0.06);
+}
+
+.supplier-dashboard-view-chip {
+	padding: 10px 14px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	background: #eef4fb;
+	color: #4d627e;
+	font-size: 13px;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+}
+
+.supplier-dashboard-view-chip.is-active {
+	background: linear-gradient(180deg, #0f79d8 0%, #0b5fc4 100%);
+	color: #fff;
+	box-shadow: 0 8px 18px rgba(11, 95, 196, 0.18);
+}
+
+.supplier-dashboard-filters {
+	display: grid;
+	grid-template-columns: auto 110px auto minmax(0, 1fr);
+	align-items: center;
+	gap: 12px;
+	max-width: 100%;
+	margin: 14px 14px 0;
+	padding: 16px;
+	border: 1px solid #e6edf6;
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.94);
+	box-shadow: 0 10px 28px rgba(31, 48, 82, 0.06);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.supplier-dashboard-filters > * {
+	min-width: 0;
+}
+
+.supplier-dashboard-filter-label {
+	color: #526783;
+	font-size: 13px;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+}
+
+.supplier-dashboard-year-select {
+	position: relative;
+	width: 110px;
+}
+
+.supplier-dashboard-select {
+	display: flex;
+	width: 100%;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 16px;
+	border: 1px solid #dbe4f1;
+	border-radius: 8px;
+	background: #f8fbff;
+	color: #0c1830;
+	font-size: 19px;
+}
+
+.supplier-dashboard-chevron {
+	width: 9px;
+	height: 9px;
+	border-right: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: rotate(45deg);
+}
+
+.supplier-dashboard-year-select.is-open .supplier-dashboard-chevron {
+	transform: rotate(225deg);
+}
+
+.supplier-dashboard-year-menu {
+	position: absolute;
+	top: calc(100% + 8px);
+	left: 0;
+	right: 0;
+	z-index: 4;
+	display: grid;
+	gap: 8px;
+	padding: 10px;
+	border: 1px solid #dbe4f1;
+	border-radius: 10px;
+	background: #ffffff;
+	box-shadow: 0 16px 28px rgba(31, 48, 82, 0.12);
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-6px);
+	transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.supplier-dashboard-year-select.is-open .supplier-dashboard-year-menu {
+	opacity: 1;
+	pointer-events: auto;
+	transform: translateY(0);
+}
+
+.supplier-dashboard-month-grid {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 8px;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.supplier-dashboard-year-option,
+.supplier-dashboard-month {
+	min-width: 0;
+	padding: 10px 6px;
+	border: 1px solid #e2e9f3;
+	border-radius: 6px;
+	background: #f8fbff;
+	color: #2e425d;
+	font-size: 15px;
+	white-space: nowrap;
+}
+
+.supplier-dashboard-year-option.is-active,
+.supplier-dashboard-month.is-active {
+	border-color: #9ac8ff;
+	background: #e8f3ff;
+	color: #005bc7;
+	font-weight: 800;
+	box-shadow: inset 0 -2px 0 #8fc3ff;
+}
+
+.supplier-dashboard-party-link {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: #166a38;
+	font: inherit;
+	font-weight: 700;
+	text-align: left;
+	text-decoration: underline;
+	text-decoration-color: rgba(22, 106, 56, 0.35);
+}
+
+.supplier-dashboard-party-link.is-active {
+	color: #0aa94a;
+	text-decoration-color: currentColor;
+}
+
+.supplier-dashboard-kpis {
+	display: grid;
+	align-content: start;
+	gap: 16px;
+}
+
+.supplier-dashboard-kpi-card {
+	padding: 22px 14px 16px;
+	border-radius: 2px;
+	background: linear-gradient(180deg, #ffffff 0%, #f1f2f2 100%);
+	box-shadow: 0 5px 16px rgba(0, 0, 0, 0.12);
+	text-align: center;
+}
+
+.supplier-dashboard-kpi-value {
+	min-height: 38px;
+	color: #12a63d;
+	font-size: 19px;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.supplier-dashboard-kpi-label {
+	margin-top: 8px;
+	color: #6d6d49;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.supplier-dashboard-table-panel {
+	min-width: 0;
+}
+
+.supplier-dashboard-table-meta {
+	margin-bottom: 8px;
+	padding-left: 8px;
+	color: #5f7f69;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.supplier-dashboard-table-wrap {
+	overflow: auto;
+	max-height: calc(100vh - 210px);
+	padding-right: 8px;
+	display: grid;
+	gap: 14px;
+}
+
+.supplier-dashboard-currency-pill {
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: #eaf3ff;
+	color: #0b63cc;
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+}
+
+.supplier-dashboard-currency-tag {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: #eef4fb;
+	color: #4d627e;
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.supplier-dashboard-currency-row td {
+	padding-top: 16px;
+	padding-bottom: 6px;
+	border-bottom: 0;
+	background: #fbfdff;
+}
+
+.supplier-dashboard-currency-banner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 10px;
+	border: 1px solid #dbe6f3;
+	border-radius: 8px;
+	background: #fff;
+	color: #4d627e;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.supplier-dashboard-currency-banner strong {
+	color: #0c1830;
+	font-size: 13px;
+	font-weight: 800;
+}
+
+.supplier-dashboard-currency-total td {
+	padding-top: 8px;
+	padding-bottom: 12px;
+	border-bottom: 2px solid #d8e6f5;
+	background: #f7fbff;
+	font-weight: 800;
+}
+
+.supplier-dashboard-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	background: #fff;
+	font-size: 14px;
+	color: #2f2f2f;
+}
+
+.supplier-dashboard-table th,
+.supplier-dashboard-table td {
+	font-variant-numeric: tabular-nums;
+}
+
+.supplier-dashboard-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	padding: 12px 10px 10px;
+	border-bottom: 1px solid #7da9cf;
+	background: #fff;
+	color: #2e2e2e;
+	font-size: 13px;
+	font-weight: 800;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.supplier-dashboard-table thead th.is-text,
+.supplier-dashboard-table tbody td.is-text,
+.supplier-dashboard-table tfoot td.is-text {
+	text-align: left;
+}
+
+.supplier-dashboard-table tbody td,
+.supplier-dashboard-table tfoot td {
+	padding: 5px 10px;
+	border-bottom: 1px solid #ececec;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.supplier-dashboard-table tbody tr:nth-child(even) td {
+	background: #f2f2f2;
+}
+
+.supplier-dashboard-table tbody tr:hover td {
+	background: #ebf7ff;
+}
+
+.supplier-dashboard-table td.is-negative,
+.supplier-dashboard-table .is-negative {
+	color: #6f2b2b;
+}
+
+.supplier-dashboard-table tfoot td {
+	position: sticky;
+	bottom: 0;
+	border-top: 2px solid #4e89be;
+	border-bottom: 0;
+	background: #fff;
+	font-weight: 800;
+}
+
+.supplier-dashboard-empty {
+	display: grid;
+	place-items: center;
+	min-height: 180px;
+	border-radius: 4px;
+	background: #fff;
+	color: #5b6571;
+	font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+	.supplier-dashboard-body {
+		grid-template-columns: 1fr;
+	}
+
+	.supplier-dashboard-view-switch {
+		padding: 0 12px;
+	}
+
+	.supplier-dashboard-filters {
+		margin: 12px 12px 0;
+		padding: 12px;
+	}
+
+	.supplier-dashboard-kpis {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.supplier-dashboard-table-wrap {
+		max-height: none;
+	}
+}
+
+@media (max-width: 1280px) {
+	.supplier-dashboard-filters {
+		gap: 12px;
+	}
+}
+
+@media (max-width: 900px) {
+	.supplier-dashboard-filters {
+		grid-template-columns: 1fr;
+		align-items: stretch;
+	}
+
+	.supplier-dashboard-year-menu {
+		position: static;
+		margin-top: 10px;
+		opacity: 1;
+		pointer-events: auto;
+		transform: none;
+		display: none;
+		box-shadow: none;
+	}
+
+	.supplier-dashboard-year-select.is-open .supplier-dashboard-year-menu {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+	}
+
+	.supplier-dashboard-month-grid {
+		grid-template-columns: repeat(4, 1fr);
+		margin-top: 10px;
+	}
+}
+
+@media (max-width: 720px) {
+	.supplier-dashboard-screen {
+		padding: 12px;
+	}
+
+	.supplier-dashboard-header {
+		padding: 12px;
+	}
+
+	.supplier-dashboard-title {
+		font-size: 15px;
+	}
+
+	.supplier-dashboard-body {
+		padding: 12px;
+		gap: 12px;
+	}
+
+	.supplier-dashboard-filters {
+		margin: 12px 12px 0;
+		padding: 12px;
+		gap: 12px;
+	}
+
+	.supplier-dashboard-kpis {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.supplier-dashboard-table-wrap {
+		max-height: none;
+	}
+
+	.supplier-dashboard-table {
+		font-size: 12px;
+	}
+
+	.supplier-dashboard-table thead th,
+	.supplier-dashboard-table tbody td,
+	.supplier-dashboard-table tfoot td {
+		padding: 6px 8px;
+	}
+}
+
+@media (max-width: 560px) {
+	.supplier-dashboard-year-select.is-open .supplier-dashboard-year-menu,
+	.supplier-dashboard-month-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}

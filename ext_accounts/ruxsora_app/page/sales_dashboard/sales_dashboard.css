@@ -1,0 +1,227 @@
+.layout-main-section-wrapper.sales-dashboard-layout {
+	padding: 0;
+	background: #d8f3c8;
+	margin-top: 15px;
+	border-radius: 10px;
+}
+
+.sales-dashboard-page-head {
+	display: none;
+}
+
+.sales-dashboard-screen {
+	padding: 0;
+}
+
+.sales-dashboard-shell {
+	min-height: calc(100vh - 110px);
+	padding: 10px 0 0;
+	background:
+		radial-gradient(circle at 50% 26%, rgba(243, 255, 229, 0.98) 0%, rgba(220, 249, 191, 0.9) 24%, rgba(192, 242, 154, 0.76) 56%, rgba(180, 236, 147, 0.82) 100%),
+		linear-gradient(180deg, #dff9cd 0%, #c6f3ae 100%);
+	border-radius: 10px;
+}
+
+.sales-dashboard-filters {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.sales-dashboard-filters--years {
+	margin: 0 10px 10px;
+}
+
+.sales-dashboard-year-group-wrap {
+	max-width: 100%;
+}
+
+.sales-dashboard-year-group-wrap.is-centered {
+	overflow: visible;
+}
+
+.sales-dashboard-year-group-wrap.is-scrollable {
+	width: fit-content;
+	max-width: calc((72px * 6) + (10px * 5) + 20px);
+	max-height: 38px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+.sales-dashboard-year-group {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.sales-dashboard-year-group-wrap.is-centered .sales-dashboard-year-group {
+	justify-content: flex-start;
+	flex-wrap: wrap;
+}
+
+.sales-dashboard-year-group-wrap.is-scrollable .sales-dashboard-year-group {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(72px, auto));
+	justify-content: flex-start;
+	align-items: start;
+}
+
+.sales-dashboard-filters--months {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 10px;
+	margin: 0 10px 12px;
+}
+
+.sales-dashboard-chip {
+	padding: 6px 10px;
+	border: 1px solid #196b1a;
+	border-radius: 5px;
+	background: linear-gradient(180deg, #0db30d 0%, #079d0b 100%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.16);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1.05;
+	text-align: center;
+}
+
+.sales-dashboard-chip--year {
+	min-width: 72px;
+}
+
+.sales-dashboard-chip--month {
+	padding: 8px 6px;
+	font-size: 11px;
+}
+
+.sales-dashboard-chip.is-active {
+	border-color: #a93d3d;
+	background: linear-gradient(180deg, #e75f5f 0%, #d24545 100%);
+}
+
+.sales-dashboard-year-spinner {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.sales-dashboard-year-spinner span {
+	display: block;
+	width: 9px;
+	height: 9px;
+	border: 1px solid #bcbcbc;
+	border-radius: 2px;
+	background: #f7f7f7;
+}
+
+.sales-dashboard-table-panel {
+	width: calc(100% - 20px);
+	margin: 0 10px;
+	transform: none;
+	border: 1px solid rgba(102, 151, 94, 0.66);
+	border-radius: 10px;
+	background: linear-gradient(180deg, rgba(223, 252, 194, 0.72) 0%, rgba(206, 246, 172, 0.8) 100%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.sales-dashboard-table-wrap {
+	max-height: calc(100vh - 220px);
+	overflow: auto;
+	max-width: 100%;
+}
+
+.sales-dashboard-table-empty {
+	padding: 24px 18px;
+	color: #355237;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.sales-dashboard-table {
+	width: 100%;
+	min-width: 1100px;
+	border-collapse: collapse;
+	table-layout: auto;
+	font-size: 12px;
+}
+
+.sales-dashboard-table th,
+.sales-dashboard-table td {
+	padding: 2px 6px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+	white-space: nowrap;
+}
+
+.sales-dashboard-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: rgba(220, 249, 189, 0.96);
+	color: #3f5679;
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.sales-dashboard-table td {
+	color: #355237;
+	line-height: 1.08;
+}
+
+.sales-dashboard-table .is-text {
+	min-width: 280px;
+	text-align: left;
+}
+
+.sales-dashboard-table .is-number {
+	min-width: 112px;
+	text-align: right;
+}
+
+.sales-dashboard-table .is-negative {
+	color: #8b2929;
+}
+
+.sales-dashboard-table tbody tr:hover td {
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.sales-dashboard-table tbody tr.is-active td {
+	background: rgba(255, 255, 255, 0.34);
+	color: #163b1f;
+	font-weight: 700;
+}
+
+.sales-dashboard-table tbody tr.is-total td {
+	position: sticky;
+	bottom: 0;
+	background: linear-gradient(180deg, #c2f09a 0%, #9ed472 100%);
+	border-top: 2px solid #6aa15d;
+	border-bottom: 0;
+	color: #325a34;
+	font-weight: 700;
+}
+
+@media (max-width: 1200px) {
+	.sales-dashboard-filters--months {
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+	}
+
+	.sales-dashboard-table-panel {
+		width: 100%;
+		transform: none;
+	}
+}
+
+@media (max-width: 768px) {
+	.sales-dashboard-year-group-wrap {
+		width: auto;
+		max-width: 100%;
+	}
+
+	.sales-dashboard-year-group-wrap.is-centered .sales-dashboard-year-group,
+	.sales-dashboard-year-group-wrap.is-scrollable .sales-dashboard-year-group {
+		justify-content: flex-start;
+	}
+}

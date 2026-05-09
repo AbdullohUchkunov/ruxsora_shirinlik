@@ -14,12 +14,17 @@ fixtures = [
 # Apps
 # ------------------
 app_include_js = [
+    "/assets/ext_accounts/js/dashboard_navigation.js",
     "/assets/ext_accounts/js/other_ext.js",
     "/assets/ext_accounts/js/purchase_invoice.js",
 	"/assets/ext_accounts/js/purchase_receipt.js",
 	"/assets/ext_accounts/js/sales_invoice.js",
 	"/assets/ext_accounts/js/delivery_note.js",
 	"/assets/ext_accounts/js/payment_entry.js"
+]
+
+app_include_css = [
+    "/assets/ext_accounts/css/dashboard_navigation.css",
 ]
 
 # DocType overrides
@@ -191,7 +196,26 @@ doc_events = {
     "Sales Invoice": {
         "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
         "before_validate": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
-        "on_submit": "ext_accounts.telegram_notifications.notify_sales_invoice"
+        "on_submit": [
+            "ext_accounts.telegram_notifications.notify_sales_invoice",
+            "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        ],
+        "on_cancel": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_update_after_submit": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+    },
+    "Stock Entry": {
+        "on_submit": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_cancel": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_update_after_submit": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+    },
+    "GL Entry": {
+        "after_insert": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_update": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_trash": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+    },
+    "Currency Exchange": {
+        "on_update": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
+        "on_trash": "ext_accounts.ruxsora_app.page.page_dashboard.page_dashboard.clear_dashboard_cache",
     },
     "Delivery Note": {
         "before_insert": "ext_accounts.ruxsora_app.doctype.party_financial_defaults.party_financial_defaults.apply_party_defaults",
@@ -311,4 +335,3 @@ override_whitelisted_methods = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-

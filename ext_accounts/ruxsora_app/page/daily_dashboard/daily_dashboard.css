@@ -1,0 +1,414 @@
+.layout-main-section-wrapper.daily-dashboard-layout {
+	padding: 0;
+	background: #f2f3f5;
+	margin-top: 15px;
+}
+
+.daily-dashboard-page-head {
+	display: none;
+}
+
+.daily-dashboard-screen {
+	padding: 0;
+}
+
+.daily-dashboard-shell {
+	margin: 0 auto;
+	border-top: 1px solid #188b34;
+	background: #f7f7f8;
+}
+
+.daily-dashboard-topbar {
+	display: grid;
+	grid-template-columns: 1.2fr auto 40px;
+	align-items: center;
+	gap: 18px;
+	padding: 12px 18px 14px;
+	background: linear-gradient(180deg, #0cb142 0%, #07a43b 100%);
+	color: #fff;
+}
+
+.daily-dashboard-brand {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-width: 0;
+}
+
+.daily-dashboard-logo {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 58px;
+	height: 58px;
+	border: 2px solid rgba(255, 255, 255, 0.85);
+	border-radius: 50%;
+	background: radial-gradient(circle at 30% 30%, #ecfff0 0%, #9fe18d 48%, #5ab95d 100%);
+	color: #2d7b20;
+	font-size: 13px;
+	font-weight: 800;
+	box-shadow: inset 0 0 0 2px rgba(29, 137, 35, 0.28);
+}
+
+.daily-dashboard-title-primary,
+.daily-dashboard-title-secondary {
+	line-height: 1.1;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.daily-dashboard-title-primary {
+	font-size: 15px;
+	letter-spacing: 0.02em;
+}
+
+.daily-dashboard-title-secondary {
+	margin-top: 4px;
+	font-size: 12px;
+}
+
+.daily-dashboard-years {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.daily-dashboard-year-spinner {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	margin-left: -2px;
+}
+
+.daily-dashboard-year-spinner span {
+	display: block;
+	width: 8px;
+	height: 8px;
+	border: 1px solid #b7b7b7;
+	border-radius: 2px;
+	background: #f3f4f5;
+}
+
+.daily-dashboard-info {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: 2px solid rgba(255, 255, 255, 0.7);
+	border-radius: 50%;
+	color: #f5fff4;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.daily-dashboard-months {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 8px;
+	padding: 12px 20px 10px;
+}
+
+.daily-dashboard-clients {
+	display: grid;
+	grid-template-columns: repeat(8, minmax(0, 1fr));
+	gap: 8px 6px;
+	margin: 12px 12px 8px;
+	padding: 10px 10px 78px;
+	border: 1px solid #474747;
+	border-radius: 12px;
+	background: #f8f8f9;
+	align-content: start;
+	overflow-y: auto;
+	overflow-x: hidden;
+	scrollbar-gutter: stable;
+}
+
+.daily-dashboard-chip {
+	padding: 6px 8px;
+	border: 1px solid #555;
+	border-radius: 6px;
+	background: linear-gradient(180deg, #ffffff 0%, #efefef 100%);
+	color: #515151;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.1;
+	text-align: center;
+	white-space: nowrap;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.daily-dashboard-chip--year {
+	min-width: 92px;
+	padding: 8px 12px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.daily-dashboard-chip--month {
+	padding: 5px 6px;
+	border-color: #226423;
+	border-radius: 5px;
+	background: linear-gradient(180deg, #1ab31b 0%, #0ca60f 100%);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.daily-dashboard-chip--client {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.daily-dashboard-chip.is-active.daily-dashboard-chip--year {
+	border-color: #5b8d53;
+	background: linear-gradient(180deg, #9df36e 0%, #77df4e 100%);
+	color: #1f4e1f;
+}
+
+.daily-dashboard-chip.is-active.daily-dashboard-chip--month {
+	border-color: #3857a8;
+	background: linear-gradient(180deg, #4f6bcf 0%, #2748ad 100%);
+}
+
+.daily-dashboard-chip.is-active.daily-dashboard-chip--client {
+	background: linear-gradient(180deg, #3260d6 0%, #1e44b8 100%);
+	color: #fff;
+	border-color: #1535a0;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 5px rgba(30, 68, 184, 0.35);
+}
+
+.daily-dashboard-content {
+	display: grid;
+	grid-template-columns: 330px minmax(0, 1fr);
+	gap: 14px;
+	padding: 0 6px 10px;
+	align-items: start;
+}
+
+.daily-dashboard-calendar-panel,
+.daily-dashboard-table-panel {
+	border: 1px solid #585858;
+	border-radius: 10px;
+	background: #fbfbfc;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.daily-dashboard-calendar-panel {
+	padding: 8px 8px 10px;
+}
+
+.daily-dashboard-calendar-title {
+	margin: 0 0 8px;
+	color: #4f4f4f;
+	font-size: 12px;
+	font-weight: 600;
+	text-align: center;
+}
+
+.daily-dashboard-calendar-weekdays {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	margin-bottom: 4px;
+}
+
+.daily-dashboard-weekday {
+	padding: 2px 0 4px;
+	color: #666;
+	font-size: 11px;
+	text-align: center;
+}
+
+.daily-dashboard-calendar-grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 2px;
+}
+
+.daily-dashboard-calendar-cell {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	min-height: 51px;
+	padding: 4px 5px;
+	border: 1px solid #7b8ea8;
+	background: #ffffff;
+	width: 100%;
+	cursor: pointer;
+	appearance: none;
+	-webkit-appearance: none;
+	text-align: inherit;
+}
+
+.daily-dashboard-calendar-cell.is-empty {
+	border-color: transparent;
+	background: transparent;
+	cursor: default;
+}
+
+.daily-dashboard-calendar-cell.is-blank {
+	border-color: #999;
+	background: #fff;
+}
+
+.daily-dashboard-calendar-cell.is-active {
+	background: #c95500 !important;
+	border-color: #a84400;
+	outline: 2px solid #fff;
+	outline-offset: -4px;
+}
+
+.daily-dashboard-calendar-cell.is-active .daily-dashboard-calendar-day {
+	color: #fff;
+	font-weight: 700;
+}
+
+.daily-dashboard-calendar-cell.is-active .daily-dashboard-calendar-value {
+	color: #ffe0c0;
+}
+
+.daily-dashboard-calendar-cell:not(.is-empty):hover {
+	filter: brightness(0.97);
+}
+
+.daily-dashboard-calendar-day {
+	color: #2f2f2f;
+	font-size: 11px;
+	text-align: right;
+}
+
+.daily-dashboard-calendar-value {
+	color: rgba(255, 255, 255, 0.97);
+	font-size: 11px;
+	font-weight: 700;
+	text-align: left;
+}
+
+.daily-dashboard-calendar-cell.is-blank .daily-dashboard-calendar-value {
+	color: transparent;
+}
+
+.daily-dashboard-calendar-cell.is-blank .daily-dashboard-calendar-day {
+	text-align: center;
+}
+
+.daily-dashboard-calendar-cell.heat-1 {
+	background: #87b6ec;
+}
+
+.daily-dashboard-calendar-cell.heat-2 {
+	background: #679cdf;
+}
+
+.daily-dashboard-calendar-cell.heat-3 {
+	background: #4f86cc;
+}
+
+.daily-dashboard-calendar-cell.heat-4 {
+	background: #356cb9;
+}
+
+.daily-dashboard-calendar-cell.heat-5 {
+	background: #143f93;
+}
+
+.daily-dashboard-table-panel {
+	display: flex;
+	flex-direction: column;
+	padding: 7px 7px 5px;
+	min-height: 0;
+}
+
+.daily-dashboard-table-wrap {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.daily-dashboard-table-scroll {
+	flex: 1 1 auto;
+	overflow: auto;
+	min-height: 0;
+}
+
+.daily-dashboard-table {
+	width: max-content;
+	min-width: 100%;
+	border-collapse: collapse;
+	font-size: 11px;
+	table-layout: fixed;
+}
+
+.daily-dashboard-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 4px 6px 6px;
+	color: #5a5a5a;
+	font-size: 11px;
+	font-weight: 600;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	background: #fbfbfc;
+}
+
+.daily-dashboard-table td {
+	padding: 3px 6px;
+	border-bottom: 1px solid #ededed;
+	color: #444;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.daily-dashboard-table tfoot td {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	padding: 4px 6px;
+	border-top: 2px solid #939393;
+	background: #eef3f8;
+	color: #222;
+	font-weight: 700;
+}
+
+.daily-dashboard-table th.is-number,
+.daily-dashboard-table td.is-number {
+	text-align: right;
+}
+
+.daily-dashboard-table th.is-text,
+.daily-dashboard-table td.is-text {
+	text-align: left;
+}
+
+.daily-dashboard-table th:first-child,
+.daily-dashboard-table td:first-child {
+	width: 320px;
+	min-width: 320px;
+	max-width: 320px;
+}
+
+.daily-dashboard-table th:not(.is-text),
+.daily-dashboard-table td:not(.is-text) {
+	min-width: 76px;
+	font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1200px) {
+	.daily-dashboard-months {
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+	}
+
+	.daily-dashboard-clients {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		padding-bottom: 16px;
+	}
+
+	.daily-dashboard-content {
+		grid-template-columns: 1fr;
+	}
+}
