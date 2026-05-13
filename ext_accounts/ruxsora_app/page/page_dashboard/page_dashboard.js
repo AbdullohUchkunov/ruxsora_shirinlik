@@ -38,6 +38,8 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 		this.requestId = 0;
 		this.sectionRequestId = 0;
 		this.mapRenderId = 0;
+		this.tableSources = {};
+		this.tableSorts = {};
 
 		this.make_layout();
 		this.load_context();
@@ -199,7 +201,7 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 				this.render_table(
 					"product-margin",
 					data.rows || [],
-					["Товары", "Тонна", "Сумма продаж", "Сумма себ", "Маржа", "RCP сумма", "%", "Маржа нет", "Рен"],
+					["Товары", "Тонна", "Сумма продаж", "Сумма себ", "Маржа", "Общ. произв.", "Админ.", "Сотув хар.", "Маржа нет", "Рен"],
 					data.title || null
 				);
 			},
@@ -367,7 +369,7 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 		this.render_table(
 			"product-margin",
 			this.context.product_margin_rows || [],
-			["Товары", "Тонна", "Сумма продаж", "Сумма себ", "Маржа", "RCP сумма", "%", "Маржа нет", "Рен"],
+			["Товары", "Тонна", "Сумма продаж", "Сумма себ", "Маржа", "Общ. произв.", "Админ.", "Сотув хар.", "Маржа нет", "Рен"],
 			this.context.product_margin_title || null
 		);
 		this.render_table(
@@ -400,6 +402,13 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 			this.render_region_map($slot, this.context.regional_map || []);
 			return;
 		}
+		this.tableSources[key] = {
+			rows: rows || [],
+			headers,
+			title,
+		};
+		const sortedRows = this.get_sorted_table_rows(key);
+		const sortState = this.get_table_sort_state(key);
 		const columnWidths = this.getTableColumnWidths(key, headers.length);
 		$slot.html(`
 			${title ? `<div class="dashboard-page-table-title">${frappe.utils.escape_html(title)}</div>` : ""}
@@ -412,13 +421,26 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 						${headers
 							.map((header, index) => {
 								const alignClass = index === 0 ? "is-text" : "is-number";
-								return `<th class="${alignClass}">${frappe.utils.escape_html(header)}</th>`;
+								const isSorted = sortState.columnIndex === index;
+								const sortDirectionClass = isSorted ? `is-sort-${sortState.direction}` : "";
+								const ariaSort = isSorted && sortState.direction === "asc" ? "ascending" : isSorted ? "descending" : "none";
+								if (!this.is_table_column_sortable(key, index)) {
+									return `<th class="${alignClass}">${frappe.utils.escape_html(header)}</th>`;
+								}
+								return `
+									<th class="${alignClass} ${isSorted ? "is-sorted" : ""} ${sortDirectionClass}">
+										<button class="dashboard-page-sort-button" type="button" data-sort-column="${index}" aria-sort="${ariaSort}">
+											<span>${frappe.utils.escape_html(header)}</span>
+											<span class="dashboard-page-sort-icon" aria-hidden="true"></span>
+										</button>
+									</th>
+								`;
 							})
 							.join("")}
 					</tr>
 				</thead>
 				<tbody>
-					${(rows || [])
+					${sortedRows
 						.map(
 							(row) => `
 								<tr class="${row.is_total ? "is-total" : ""}">
@@ -442,11 +464,90 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 				</tbody>
 			</table>
 		`);
+		$slot.find("[data-sort-column]").on("click", (e) => {
+			const columnIndex = Number($(e.currentTarget).data("sort-column"));
+			if (!this.is_table_column_sortable(key, columnIndex)) {
+				return;
+			}
+			const currentSort = this.get_table_sort_state(key);
+			const direction =
+				currentSort.columnIndex === columnIndex && currentSort.direction === "desc" ? "asc" : "desc";
+			this.tableSorts[key] = { columnIndex, direction };
+			const source = this.tableSources[key] || { rows: [], headers, title };
+			this.render_table(key, source.rows, source.headers, source.title);
+		});
+	}
+
+	get_table_sort_state(key) {
+		if (!this.tableSorts[key]) {
+			this.tableSorts[key] = { columnIndex: this.get_default_table_sort_column(key), direction: "desc" };
+		}
+		return this.tableSorts[key];
+	}
+
+	get_default_table_sort_column(key) {
+		const defaultSortColumns = {
+			"product-margin": 1,
+			"kpi-client-monthly": 1,
+		};
+
+		return defaultSortColumns[key] ?? 1;
+	}
+
+	is_table_column_sortable(key, columnIndex) {
+		return columnIndex !== 0;
+	}
+
+	get_sorted_table_rows(key) {
+		const source = this.tableSources[key] || { rows: [] };
+		const sortState = this.get_table_sort_state(key);
+		if (!this.is_table_column_sortable(key, sortState.columnIndex)) {
+			return source.rows || [];
+		}
+		const bodyRows = (source.rows || [])
+			.map((row, index) => ({ row, index }))
+			.filter(({ row }) => !row.is_total);
+		const totalRows = (source.rows || []).filter((row) => row.is_total);
+
+		bodyRows.sort((left, right) => {
+			const leftValue = this.get_sort_value(left.row.values?.[sortState.columnIndex]);
+			const rightValue = this.get_sort_value(right.row.values?.[sortState.columnIndex]);
+			let result = 0;
+
+			if (leftValue.type === "number" && rightValue.type === "number") {
+				result = rightValue.value - leftValue.value;
+			} else {
+				result = String(rightValue.value).localeCompare(String(leftValue.value), undefined, {
+					numeric: true,
+					sensitivity: "base",
+				});
+			}
+
+			if (sortState.direction === "asc") {
+				result *= -1;
+			}
+
+			return result || left.index - right.index;
+		});
+
+		return [...bodyRows.map(({ row }) => row), ...totalRows];
+	}
+
+	get_sort_value(value) {
+		const textValue = String(value ?? "").trim();
+		const normalizedNumber = textValue.replace(/\s/g, "").replace(/%/g, "").replace(/,/g, ".");
+		const numericValue = Number(normalizedNumber);
+
+		if (textValue && /^-?\d+(\.\d+)?$/.test(normalizedNumber) && Number.isFinite(numericValue)) {
+			return { type: "number", value: numericValue };
+		}
+
+		return { type: "text", value: textValue };
 	}
 
 	getTableColumnWidths(key, columnCount) {
 		const widthMap = {
-			"product-margin": ["22%", "8%", "13%", "11%", "11%", "10%", "6%", "12%", "7%"],
+			"product-margin": ["20%", "7%", "11%", "10%", "10%", "10%", "8%", "9%", "9%", "6%"],
 			"client-kpi": ["34%", "16%", "32%", "18%"],
 			"kpi-client-monthly": ["22%", "10%", "10%", "8%", "10%", "8%", "8%", "8%", "9%", "7%"],
 			"regional-summary": ["34%", "22%", "26%", "18%"],
@@ -820,9 +921,9 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 								return `
 								<div class="dashboard-page-month-metrics-row">
 									<div class="is-month">${frappe.utils.escape_html(row.label)}</div>
-									<div class="is-metric">${frappe.utils.escape_html(this.formatInteger(row.metrics.price_trend.value))}</div>
-									<div class="is-metric">${frappe.utils.escape_html(this.formatInteger(row.metrics.check_trend.value))}</div>
-									<div class="is-metric">${frappe.utils.escape_html(this.formatInteger(difference))}</div>
+									<div class="is-metric">${frappe.utils.escape_html(this.formatDecimal(row.metrics.price_trend.value))}</div>
+									<div class="is-metric">${frappe.utils.escape_html(this.formatDecimal(row.metrics.check_trend.value))}</div>
+									<div class="is-metric">${frappe.utils.escape_html(this.formatDecimal(difference))}</div>
 								</div>
 							`;
 							}
@@ -833,15 +934,15 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 					<div class="is-month">${__("Итог")}</div>
 					<div class="is-metric">
 						<div class="dashboard-page-month-metrics-total-label">${frappe.utils.escape_html(this.metricColumns.price_trend.totalLabel)}</div>
-						<div>${frappe.utils.escape_html(this.formatInteger(totals.price_trend))}</div>
+						<div>${frappe.utils.escape_html(this.formatDecimal(totals.price_trend))}</div>
 					</div>
 					<div class="is-metric">
 						<div class="dashboard-page-month-metrics-total-label">${frappe.utils.escape_html(this.metricColumns.check_trend.totalLabel)}</div>
-						<div>${frappe.utils.escape_html(this.formatInteger(totals.check_trend))}</div>
+						<div>${frappe.utils.escape_html(this.formatDecimal(totals.check_trend))}</div>
 					</div>
 					<div class="is-metric">
 						<div class="dashboard-page-month-metrics-total-label">${frappe.utils.escape_html("Макс")}</div>
-						<div>${frappe.utils.escape_html(this.formatInteger(differenceMax))}</div>
+						<div>${frappe.utils.escape_html(this.formatDecimal(differenceMax))}</div>
 					</div>
 				</div>
 			</div>
@@ -859,6 +960,13 @@ dashboards.ui.PageDashboardPage = class PageDashboardPage {
 		const sign = value < 0 ? "-" : "";
 		const numeric = Math.abs(Math.round(Number(value || 0)));
 		return `${sign}${String(numeric).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
+	}
+
+	formatDecimal(value, precision = 2) {
+		const numeric = Number(value || 0);
+		const sign = numeric < 0 ? "-" : "";
+		const [wholePart, decimalPart] = Math.abs(numeric).toFixed(precision).split(".");
+		return `${sign}${wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}.${decimalPart}`;
 	}
 
 };

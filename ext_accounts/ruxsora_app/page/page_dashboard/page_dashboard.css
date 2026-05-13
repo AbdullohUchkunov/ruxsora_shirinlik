@@ -384,6 +384,51 @@
 	font-weight: 700;
 }
 
+.dashboard-page-sort-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 100%;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 700;
+	line-height: 1.15;
+	cursor: pointer;
+}
+
+.dashboard-page-table thead .is-number .dashboard-page-sort-button {
+	justify-content: flex-end;
+}
+
+.dashboard-page-sort-button span:first-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dashboard-page-sort-icon {
+	flex: 0 0 auto;
+	width: 0;
+	height: 0;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+	border-top: 6px solid #a9b4ad;
+	opacity: 0.75;
+}
+
+.dashboard-page-table thead th.is-sorted .dashboard-page-sort-icon {
+	border-top-color: #2d8d22;
+	opacity: 1;
+}
+
+.dashboard-page-table thead th.is-sort-asc .dashboard-page-sort-icon {
+	transform: rotate(180deg);
+}
+
 .dashboard-page-table thead .is-text {
 	text-align: left;
 }

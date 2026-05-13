@@ -13,8 +13,7 @@ from ext_accounts.ruxsora_app.dashboard_data import (
     convert_to_reporting_currency,
     format_number,
     get_cogs_total,
-    get_item_cogs_map,
-    get_item_rcp_map,
+    get_reporting_currency,
     get_monthly_sales_from_profit_and_loss,
     get_sales_profit_and_loss_period_end,
 )
@@ -103,6 +102,63 @@ def _period_start_date(year: str, month: str | None = None):
     return getdate(f"{year}-01-01")
 
 
+def _gross_profit_period_start_date(year: str, month: str | None = None):
+    if month in MONTH_LABELS:
+        return _period_start_date(year, month)
+
+    return getdate(f"{int(year) - 1}-12-31")
+
+
+def _profit_and_loss_period_start_date(year: str, month: str | None = None):
+    from erpnext.accounts.utils import get_fiscal_year
+
+    period_end = _period_end_date(year, month)
+    company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+    fiscal_year = get_fiscal_year(period_end, company=company)[0] if company else None
+    if not fiscal_year:
+        return _period_start_date(year, month)
+
+    fiscal_year_start = frappe.db.get_value("Fiscal Year", fiscal_year, "year_start_date")
+    return getdate(fiscal_year_start) if fiscal_year_start else _period_start_date(year, month)
+
+
+def _get_profit_and_loss_rows(year: str, month: str | None = None) -> list[dict[str, Any]]:
+    from erpnext.accounts.report.profit_and_loss_statement import profit_and_loss_statement
+    from erpnext.accounts.utils import get_fiscal_year
+
+    period_end = _period_end_date(year, month)
+    company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+    fiscal_year = get_fiscal_year(period_end, company=company)[0] if company else None
+    if not company or not fiscal_year:
+        return []
+
+    fiscal_year_dates = frappe.db.get_value(
+        "Fiscal Year",
+        fiscal_year,
+        ["year_start_date", "year_end_date"],
+        as_dict=True,
+    )
+    if not fiscal_year_dates:
+        return []
+
+    filters = frappe._dict(
+        {
+            "company": company,
+            "filter_based_on": "Fiscal Year",
+            "period_start_date": str(fiscal_year_dates.year_start_date),
+            "period_end_date": str(fiscal_year_dates.year_end_date),
+            "from_fiscal_year": fiscal_year,
+            "to_fiscal_year": fiscal_year,
+            "periodicity": "Monthly",
+            "accumulated_values": 0,
+            "include_default_book_entries": 1,
+            "presentation_currency": get_reporting_currency(),
+        }
+    )
+    _columns, rows, *_rest = profit_and_loss_statement.execute(filters)
+    return rows or []
+
+
 def _empty_month_map() -> dict[int, float]:
     return {month_no: 0 for month_no in range(1, 13)}
 
@@ -111,6 +167,19 @@ RETURN_ADJUSTMENT_ITEM_FILTER = """
     AND TRIM(COALESCE(sii.item_name, '')) NOT IN ('Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
     AND TRIM(COALESCE(sii.item_code, '')) NOT IN ('Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
 """
+
+PRODUCT_MARGIN_EXCLUDED_ITEMS = {
+    "Логистика ГП",
+    "Скидка 7 %",
+    "Скидка 3 %",
+    "Диллерский бонус",
+}
+
+INDIRECT_EXPENSE_COLUMNS = [
+    {"key": "production", "account": "52001 - Общепроизводственные расходы - R", "label": "Общ. произв."},
+    {"key": "admin", "account": "52002 - Административные - R", "label": "Админ."},
+    {"key": "selling_expense", "account": "52003 - Сотув харажатлари - R", "label": "Сотув хар."},
+]
 
 
 def _resolve_year(filters=None) -> str:
@@ -215,7 +284,11 @@ def get_dashboard_summary(year: str | None = None, month: str | None = None) -> 
     else:
         sales_total = sum(flt(value) for value in monthly_sales.values())
 
-    cost_total = flt(get_cogs_total(selected_year, month)) or _sum_company_currency_rows(item_totals, "cost_total")
+    cost_total = (
+        flt(_get_gross_profit_cost_total(selected_year, month))
+        or flt(get_cogs_total(selected_year, month))
+        or _sum_company_currency_rows(item_totals, "cost_total")
+    )
     rcp_total = _get_rcp_expense_total_in_reporting_currency(selected_year, month)
     margin_total = sales_total - cost_total
     invoice_count = sum(flt(row.invoice_count) for row in invoice_totals)
@@ -309,79 +382,68 @@ def _get_rcp_expense_total_in_reporting_currency(year: str, month: str | None = 
     return sum(convert_company_currency_amount(row.total, row.posting_date, row.company) for row in rows)
 
 
+def _get_indirect_expense_totals_by_account(year: str, month: str | None = None) -> dict[str, float]:
+    if not year:
+        return {column["key"]: 0.0 for column in INDIRECT_EXPENSE_COLUMNS}
+
+    totals = {column["key"]: 0.0 for column in INDIRECT_EXPENSE_COLUMNS}
+    key_by_account_number = {
+        column["account"].split(" - ", 1)[0]: column["key"]
+        for column in INDIRECT_EXPENSE_COLUMNS
+    }
+    for row in _get_profit_and_loss_rows(year, month):
+        account_number = str(row.get("account") or "").split(" - ", 1)[0].strip()
+        key = key_by_account_number.get(account_number)
+        if key:
+            totals[key] = abs(flt(row.get("total")))
+
+    return totals
+
+
 def get_product_margin_rows(year: str | None = None, month: str | None = None, limit: int | None = None) -> list[list[str | bool]]:
     selected_year = year or get_default_year()
-    clause, params = _period_clause(selected_year, month, alias="si")
-    report_end_date = _period_end_date(selected_year, month)
-    product_cogs_amounts = get_item_cogs_map(selected_year, month)
-    product_rcp_amounts = get_item_rcp_map(selected_year, month)
-
-    rows = frappe.db.sql(
-        f"""
-        SELECT
-            COALESCE(NULLIF(sii.item_code, ''), NULLIF(sii.item_name, ''), 'Неизвестный товар') AS item_code,
-            COALESCE(NULLIF(sii.item_name, ''), sii.item_code, 'Неизвестный товар') AS item_label,
-            si.company,
-            SUM(CASE WHEN COALESCE(si.is_return, 0) = 0 THEN COALESCE(sii.stock_qty, sii.qty, 0) ELSE 0 END) AS qty_total,
-            SUM(COALESCE(sii.base_net_amount, 0)) AS sales_amount,
-            SUM(CASE WHEN COALESCE(si.is_return, 0) = 0 THEN COALESCE(sii.stock_qty, sii.qty, 0) * COALESCE(sii.incoming_rate, 0) ELSE 0 END) AS cost_amount
-        FROM `tabSales Invoice` si
-        INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
-        WHERE si.docstatus = 1
-          {clause}
-        GROUP BY
-            COALESCE(NULLIF(sii.item_code, ''), NULLIF(sii.item_name, ''), 'Неизвестный товар'),
-            COALESCE(NULLIF(sii.item_name, ''), sii.item_code, 'Неизвестный товар'),
-            si.company
-        """,
-        params,
-        as_dict=True,
-    )
+    indirect_totals = _get_indirect_expense_totals_by_account(selected_year, month)
 
     grouped: dict[str, dict[str, float | str]] = {}
-    for row in rows:
-        sales_amount = convert_company_currency_amount_like_report(row.sales_amount, report_end_date, row.company)
-        cost_amount = convert_company_currency_amount_like_report(row.cost_amount, report_end_date, row.company)
+    for row in _get_gross_profit_product_rows(selected_year, month):
         existing = grouped.setdefault(
-            row.item_code,
+            str(row["item_code"]),
             {
-                "label": row.item_label,
-                "item_code": row.item_code,
+                "label": row["label"],
+                "item_code": row["item_code"],
                 "qty": 0.0,
                 "sales": 0.0,
                 "cost": 0.0,
-                "rsp": 0.0,
                 "margin": 0.0,
                 "net_margin": 0.0,
+                **{column["key"]: 0.0 for column in INDIRECT_EXPENSE_COLUMNS},
             },
         )
-        existing["qty"] += flt(row.qty_total)
-        existing["sales"] += sales_amount
-        existing["cost"] += cost_amount
+        existing["qty"] += flt(row["qty"])
+        existing["sales"] += flt(row["sales"])
+        existing["cost"] += flt(row["cost"])
 
     values = list(grouped.values())
+    total_qty_for_allocation = sum(flt(row["qty"]) for row in values if flt(row["qty"]) > 0)
     for row in values:
-        row["cost"] = product_cogs_amounts.get(
-            str(row.get("item_code") or ""),
-            product_cogs_amounts.get(str(row["label"]), flt(row["cost"])),
-        )
-        row["rsp"] = product_rcp_amounts.get(
-            str(row.get("item_code") or ""),
-            product_rcp_amounts.get(str(row["label"]), 0.0),
-        )
+        qty_share = flt(row["qty"]) / total_qty_for_allocation if total_qty_for_allocation and flt(row["qty"]) > 0 else 0
+        for column in INDIRECT_EXPENSE_COLUMNS:
+            row[column["key"]] = indirect_totals[column["key"]] * qty_share
         row["margin"] = flt(row["sales"]) - flt(row["cost"])
-        row["net_margin"] = flt(row["margin"]) - flt(row["rsp"])
+        row["net_margin"] = flt(row["margin"]) - sum(flt(row[column["key"]]) for column in INDIRECT_EXPENSE_COLUMNS)
 
     sorted_values = sorted(values, key=lambda row: row["sales"], reverse=True)
     selected_values = sorted_values[:limit] if limit is not None else sorted_values
     total_qty = sum(flt(row["qty"]) for row in values)
     total_cost = sum(flt(row["cost"]) for row in values)
-    total_rsp = sum(flt(row["rsp"]) for row in values)
+    total_indirects = {
+        column["key"]: sum(flt(row[column["key"]]) for row in values)
+        for column in INDIRECT_EXPENSE_COLUMNS
+    }
     total_margin = sum(flt(row["margin"]) for row in values)
     total_net_margin = sum(flt(row["net_margin"]) for row in values)
     total_sales = sum(flt(row["sales"]) for row in values)
     total_profitability = (total_margin / total_sales * 100) if total_sales else 0
-    total_rsp_percent = (total_rsp / total_sales * 100) if total_sales else 0
 
     result = [
         [
@@ -390,8 +452,7 @@ def get_product_margin_rows(year: str | None = None, month: str | None = None, l
             format_number(row["sales"]),
             format_number(row["cost"]),
             format_number(row["margin"]),
-            format_number(row["rsp"]),
-            f"{((flt(row['rsp']) / flt(row['sales'])) * 100) if flt(row['sales']) else 0:.1f}%".replace(".", ","),
+            *[format_number(row[column["key"]]) for column in INDIRECT_EXPENSE_COLUMNS],
             format_number(row["net_margin"]),
             f"{((flt(row['margin']) / flt(row['sales'])) * 100) if flt(row['sales']) else 0:.1f}%".replace(".", ","),
         ]
@@ -404,8 +465,7 @@ def get_product_margin_rows(year: str | None = None, month: str | None = None, l
             format_number(total_sales),
             format_number(total_cost),
             format_number(total_margin),
-            format_number(total_rsp),
-            f"{total_rsp_percent:.1f}%".replace(".", ","),
+            *[format_number(total_indirects[column["key"]]) for column in INDIRECT_EXPENSE_COLUMNS],
             format_number(total_net_margin),
             f"{total_profitability:.1f}%".replace(".", ","),
             True,
@@ -498,12 +558,12 @@ def _get_report_row_value(row, columns: list[dict[str, Any]], fieldname: str):
     return None
 
 
-def _get_gross_profit_client_rows(year: str, month: str | None = None) -> list[dict[str, Any]]:
+def _get_gross_profit_report_rows(year: str, month: str | None = None, group_by: str = "Customer"):
     from erpnext.accounts.report.gross_profit.gross_profit import execute as gross_profit_execute
 
-    from_date = _period_start_date(year, month)
+    from_date = _gross_profit_period_start_date(year, month)
     to_date = _period_end_date(year, month)
-    result: list[dict[str, Any]] = []
+    result = []
 
     for company in _get_period_companies(year, month):
         filters = frappe._dict(
@@ -511,28 +571,96 @@ def _get_gross_profit_client_rows(year: str, month: str | None = None) -> list[d
                 "company": company,
                 "from_date": from_date,
                 "to_date": to_date,
-                "group_by": "Customer",
+                "group_by": group_by,
                 "include_returned_invoices": 1,
             }
         )
         columns, rows = gross_profit_execute(filters)
-        for row in rows:
-            customer = _get_report_row_value(row, columns, "customer")
+        result.append({"company": company, "columns": columns, "rows": rows, "to_date": to_date})
+
+    return result
+
+
+def _get_gross_profit_cost_total(year: str, month: str | None = None) -> float:
+    total = 0.0
+
+    for report in _get_gross_profit_report_rows(year, month, group_by="Item Code"):
+        for row in report["rows"]:
+            item_code = _get_report_row_value(row, report["columns"], "item_code")
+            if item_code != "Total":
+                continue
+            total += convert_company_currency_amount_like_report(
+                _get_report_row_value(row, report["columns"], "buying_amount"),
+                report["to_date"],
+                report["company"],
+            )
+
+    return total
+
+
+def _get_gross_profit_product_rows(year: str, month: str | None = None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+
+    for report in _get_gross_profit_report_rows(year, month, group_by="Item Code"):
+        for row in report["rows"]:
+            item_code = _get_report_row_value(row, report["columns"], "item_code")
+            item_name = _get_report_row_value(row, report["columns"], "item_name") or item_code
+            if not item_code or item_code == "Total":
+                continue
+            if (
+                str(item_code).strip() in PRODUCT_MARGIN_EXCLUDED_ITEMS
+                or str(item_name).strip() in PRODUCT_MARGIN_EXCLUDED_ITEMS
+            ):
+                continue
+
+            result.append(
+                {
+                    "item_code": item_code,
+                    "label": item_name,
+                    "company": report["company"],
+                    "sales": convert_company_currency_amount_like_report(
+                        _get_report_row_value(row, report["columns"], "selling_amount"),
+                        report["to_date"],
+                        report["company"],
+                    ),
+                    "cost": convert_company_currency_amount_like_report(
+                        _get_report_row_value(row, report["columns"], "buying_amount"),
+                        report["to_date"],
+                        report["company"],
+                    ),
+                    "qty": flt(_get_report_row_value(row, report["columns"], "qty")),
+                }
+            )
+
+    return result
+
+
+def _get_gross_profit_client_rows(year: str, month: str | None = None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+
+    for report in _get_gross_profit_report_rows(year, month, group_by="Customer"):
+        for row in report["rows"]:
+            customer = _get_report_row_value(row, report["columns"], "customer")
             if not customer or customer == "Total":
                 continue
 
-            customer_name = _get_report_row_value(row, columns, "customer_name") or customer
-            selling_amount = _get_report_row_value(row, columns, "selling_amount")
-            buying_amount = _get_report_row_value(row, columns, "buying_amount")
-            qty = _get_report_row_value(row, columns, "qty")
+            customer_name = _get_report_row_value(row, report["columns"], "customer_name") or customer
 
             result.append(
                 {
                     "client": customer_name,
-                    "company": company,
-                    "sales": convert_company_currency_amount_like_report(selling_amount, to_date, company),
-                    "cost": convert_company_currency_amount_like_report(buying_amount, to_date, company),
-                    "qty": flt(qty),
+                    "company": report["company"],
+                    "sales": convert_company_currency_amount_like_report(
+                        _get_report_row_value(row, report["columns"], "selling_amount"),
+                        report["to_date"],
+                        report["company"],
+                    ),
+                    "cost": convert_company_currency_amount_like_report(
+                        _get_report_row_value(row, report["columns"], "buying_amount"),
+                        report["to_date"],
+                        report["company"],
+                    ),
+                    "qty": flt(_get_report_row_value(row, report["columns"], "qty")),
                 }
             )
 
@@ -552,6 +680,24 @@ def get_kpi_client_table_rows(
             COALESCE(NULLIF(si.customer_name, ''), si.customer, 'Неизвестный клиент') AS client,
             si.posting_date,
             si.company,
+            SUM(
+                CASE
+                    WHEN TRIM(COALESCE(sii.item_name, sii.item_code, '')) IN (
+                        'Логистика ГП',
+                        'Диллерский бонус',
+                        'Скидка 3 %%',
+                        'Скидка 7 %%'
+                    )
+                      OR TRIM(COALESCE(sii.item_code, sii.item_name, '')) IN (
+                        'Логистика ГП',
+                        'Диллерский бонус',
+                        'Скидка 3 %%',
+                        'Скидка 7 %%'
+                    )
+                    THEN ABS(COALESCE(sii.base_net_amount, sii.base_amount, sii.net_amount, sii.amount, 0))
+                    ELSE 0
+                END
+            ) AS sales_adjustment_amount,
             SUM(
                 CASE
                     WHEN TRIM(COALESCE(sii.item_name, sii.item_code, '')) = 'Диллерский бонус'
@@ -581,8 +727,8 @@ def get_kpi_client_table_rows(
         WHERE si.docstatus = 1
           AND COALESCE(si.is_return, 0) = 1
           AND (
-              TRIM(COALESCE(sii.item_name, '')) IN ('Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
-              OR TRIM(COALESCE(sii.item_code, '')) IN ('Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
+              TRIM(COALESCE(sii.item_name, '')) IN ('Логистика ГП', 'Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
+              OR TRIM(COALESCE(sii.item_code, '')) IN ('Логистика ГП', 'Диллерский бонус', 'Скидка 3 %%', 'Скидка 7 %%')
           )
           {clause}
         GROUP BY COALESCE(NULLIF(si.customer_name, ''), si.customer, 'Неизвестный клиент'), si.posting_date, si.company
@@ -612,6 +758,11 @@ def get_kpi_client_table_rows(
         existing["qty"] += flt(row["qty"])
 
     for row in adjustment_rows:
+        sales_adjustment_amount = convert_company_currency_amount_like_report(
+            row.sales_adjustment_amount,
+            report_end_date,
+            row.company,
+        )
         bonus_amount = convert_company_currency_amount_like_report(row.bonus_amount, report_end_date, row.company)
         discount_3_amount = convert_company_currency_amount_like_report(
             row.discount_3_amount,
@@ -637,6 +788,7 @@ def get_kpi_client_table_rows(
                 "net_margin": 0.0,
             },
         )
+        existing["sales"] += sales_adjustment_amount
         existing["bonus"] += bonus_amount
         existing["discount_3"] += discount_3_amount
         existing["discount_7"] += discount_7_amount
@@ -848,7 +1000,7 @@ def get_avg_cost_chart_data(year: str | None = None) -> dict[str, Any]:
 
     return {
         "labels": MONTH_LABELS,
-        "datasets": [{"name": f"Сред себ {selected_year}", "values": [round(month_map[i]) for i in range(1, 13)]}],
+        "datasets": [{"name": f"Сред себ {selected_year}", "values": [round(month_map[i], 2) for i in range(1, 13)]}],
     }
 
 
@@ -887,7 +1039,7 @@ def get_avg_check_chart_data(year: str | None = None) -> dict[str, Any]:
     }
     return {
         "labels": MONTH_LABELS,
-        "datasets": [{"name": f"Сред чек {selected_year}", "values": [round(month_map[i]) for i in range(1, 13)]}],
+        "datasets": [{"name": f"Сред чек {selected_year}", "values": [round(month_map[i], 2) for i in range(1, 13)]}],
     }
 
 
