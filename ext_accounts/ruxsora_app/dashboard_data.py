@@ -24,6 +24,7 @@ _TARGET_SALES_ACCOUNT = "4110 - Sales - P"
 _TARGET_COGS_ACCOUNT = "5111 - Cost of Goods Sold - P"
 _TARGET_FIXED_COST_ROOT_ACCOUNT_NUMBER = "5200"
 _TARGET_CASH_ROOT_ACCOUNT_NUMBER = "1100"
+_TARGET_RCP_ACCOUNT_NUMBERS = ("52002", "52003")
 _TARGET_CASH_ACCOUNTS = [
     ("1110 - Наличные UZB - P", "1110"),
     ("1111 - Р/С UZB - P", "1111"),
@@ -979,13 +980,8 @@ def _get_income_total_by_root(
 
 
 def get_rcp_totals(year: str | int | None, month: str | int | None = None) -> dict[str, float]:
-    direct_total = _get_expense_total_by_root(
-        year,
-        month,
-        ["Direct Expenses"],
-        exclude_account_patterns=["Stock Expenses", "Cost of Goods Sold", "Stock Adjustment"],
-    )
-    indirect_total = _get_expense_total_by_root(year, month, ["Indirect Expenses"])
+    direct_total = 0.0
+    indirect_total = _get_rcp_expense_total(year, month)
     return {
         "direct_total": direct_total,
         "indirect_total": indirect_total,
@@ -1181,47 +1177,120 @@ def get_item_cogs_map(year: str | int | None, month: str | int | None = None) ->
     return get_item_stock_ledger_cost_map(year, month)
 
 
+def _get_rcp_root_account_names() -> list[str]:
+    accounts = frappe.get_all(
+        "Account",
+        filters={"account_number": ("in", _TARGET_RCP_ACCOUNT_NUMBERS), "disabled": 0},
+        pluck="name",
+    )
+    if not accounts:
+        accounts = frappe.get_all(
+            "Account",
+            filters={"name": ("in", ["52002 - Административные - R", "52003 - Сотув харажатлари - R"])},
+            pluck="name",
+        )
+
+    return list(dict.fromkeys(str(account) for account in accounts if account))
+
+
 def _get_rcp_expense_total(year: str | int | None, month: str | int | None = None) -> float:
-    if not year:
+    period_start, period_end = _period_date_range(year, month)
+    root_accounts = _get_rcp_root_account_names()
+    if not period_start or not period_end or not root_accounts:
         return 0
 
-    month_no = _month_number(month)
-    month_filter = f" AND MONTH(gle.posting_date) = {frappe.db.escape(month_no)}" if month_no else ""
-
     rows = frappe.db.sql(
-        f"""
+        """
         SELECT
             gle.posting_date,
             gle.company,
             IFNULL(SUM(gle.debit - gle.credit), 0) AS total
         FROM `tabGL Entry` gle
         INNER JOIN `tabAccount` acc ON acc.name = gle.account
-        INNER JOIN `tabAccount` root_acc ON root_acc.name = '5200 - Indirect Expenses - R'
+        INNER JOIN `tabAccount` root_acc
+            ON root_acc.name IN %(root_accounts)s
+            AND acc.lft >= root_acc.lft
+            AND acc.rgt <= root_acc.rgt
         WHERE gle.docstatus = 1
           AND gle.is_cancelled = 0
-          AND YEAR(gle.posting_date) = %(year)s
-          {month_filter}
-          AND acc.lft >= root_acc.lft
-          AND acc.rgt <= root_acc.rgt
+          AND gle.posting_date BETWEEN %(from_date)s AND %(to_date)s
         GROUP BY gle.posting_date, gle.company
         """,
-        {"year": int(year)},
+        {
+            "root_accounts": tuple(root_accounts),
+            "from_date": period_start,
+            "to_date": period_end,
+        },
         as_dict=True,
     )
 
     return sum(convert_company_currency_amount(row.total, row.posting_date, row.company) for row in rows)
 
 
-def _get_item_sales_map_for_rcp(year: str | int, month: int | None = None) -> dict[str, float]:
+def get_rcp_expense_total(year: str | int | None, month: str | int | None = None) -> float:
+    return _get_rcp_expense_total(year, month)
+
+
+def get_manufactured_qty(year: str | int | None, month: str | int | None = None) -> float:
+    if not year:
+        return 0
+
+    month_no = _month_number(month)
+    params: dict[str, Any] = {"year": int(year)}
+    month_filter = ""
+    if month_no:
+        params["month"] = month_no
+        month_filter = " AND MONTH(se.posting_date) = %(month)s"
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            SUM(entry_qty) AS manufactured_qty
+        FROM (
+            SELECT
+                se.name,
+                SUM(CASE WHEN COALESCE(sed.is_finished_item, 0) = 1 THEN COALESCE(sed.qty, 0) ELSE 0 END) AS entry_qty
+            FROM `tabStock Entry` se
+            LEFT JOIN `tabStock Entry Detail` sed ON sed.parent = se.name
+            WHERE se.docstatus = 1
+              AND (se.stock_entry_type = 'Manufacture' OR se.purpose = 'Manufacture')
+              AND YEAR(se.posting_date) = %(year)s
+              {month_filter}
+            GROUP BY se.name
+        ) manufacture_entries
+        """,
+        params,
+        as_dict=True,
+    )
+
+    return flt(rows[0].manufactured_qty) if rows else 0
+
+
+def get_rcp_per_kg(year: str | int | None, month: str | int | None = None) -> float:
+    manufactured_qty = get_manufactured_qty(year, month)
+    if not manufactured_qty:
+        return 0
+
+    return _get_rcp_expense_total(year, month) / manufactured_qty
+
+
+def get_monthly_rcp_per_kg_map(year: str | int | None) -> dict[int, float]:
+    if not year:
+        return {}
+
+    return {
+        month_no: get_rcp_per_kg(year, month_no)
+        for month_no in range(1, 13)
+    }
+
+
+def _get_item_qty_map_for_rcp(year: str | int, month: int | None = None) -> dict[str, float]:
     month_filter = f" AND MONTH(si.posting_date) = {frappe.db.escape(month)}" if month else ""
     rows = frappe.db.sql(
         f"""
         SELECT
             COALESCE(NULLIF(sii.item_code, ''), NULLIF(sii.item_name, ''), 'Неизвестный товар') AS item_key,
-            si.posting_date,
-            si.currency,
-            si.company,
-            SUM(COALESCE(sii.net_amount, sii.amount, sii.base_net_amount, sii.base_amount, 0)) AS sales
+            SUM(COALESCE(sii.stock_qty, sii.qty, 0)) AS qty_total
         FROM `tabSales Invoice` si
         INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
         WHERE si.docstatus = 1
@@ -1229,44 +1298,32 @@ def _get_item_sales_map_for_rcp(year: str | int, month: int | None = None) -> di
           AND YEAR(si.posting_date) = %(year)s
           {month_filter}
         GROUP BY
-            COALESCE(NULLIF(sii.item_code, ''), NULLIF(sii.item_name, ''), 'Неизвестный товар'),
-            si.posting_date,
-            si.currency,
-            si.company
+            COALESCE(NULLIF(sii.item_code, ''), NULLIF(sii.item_name, ''), 'Неизвестный товар')
         """,
         {"year": int(year)},
         as_dict=True,
     )
 
-    sales_by_item: dict[str, float] = {}
+    qty_by_item: dict[str, float] = {}
     for row in rows:
-        sales_by_item[row.item_key] = sales_by_item.get(row.item_key, 0) + convert_to_reporting_currency(
-            row.sales,
-            row.currency,
-            row.posting_date,
-            row.company,
-        )
+        qty_by_item[row.item_key] = qty_by_item.get(row.item_key, 0) + flt(row.qty_total)
 
-    return sales_by_item
+    return qty_by_item
 
 
-def _allocate_rcp_by_sales_share(rcp_total: float, sales_by_item: dict[str, float]) -> dict[str, float]:
-    total_sales = sum(amount for amount in sales_by_item.values() if amount > 0)
-    if not rcp_total or not total_sales:
+def _allocate_rcp_by_qty(rcp_per_kg: float, qty_by_item: dict[str, float]) -> dict[str, float]:
+    if not rcp_per_kg:
         return {}
 
     return {
-        item_key: (amount / total_sales) * rcp_total
-        for item_key, amount in sales_by_item.items()
-        if amount > 0
+        item_key: flt(qty) * rcp_per_kg
+        for item_key, qty in qty_by_item.items()
+        if flt(qty) > 0
     }
 
 
 def _get_item_rcp_map_for_month(year: str | int, month: int) -> dict[str, float]:
-    return _allocate_rcp_by_sales_share(
-        _get_rcp_expense_total(year, month),
-        _get_item_sales_map_for_rcp(year, month),
-    )
+    return _allocate_rcp_by_qty(get_rcp_per_kg(year, month), _get_item_qty_map_for_rcp(year, month))
 
 
 def get_item_rcp_map(year: str | int | None, month: str | int | None = None) -> dict[str, float]:
@@ -1281,13 +1338,6 @@ def get_item_rcp_map(year: str | int | None, month: str | int | None = None) -> 
     for current_month in range(1, 13):
         for item_key, amount in _get_item_rcp_map_for_month(year, current_month).items():
             result[item_key] = result.get(item_key, 0) + amount
-
-    unallocated_amount = _get_rcp_expense_total(year) - sum(result.values())
-    for item_key, amount in _allocate_rcp_by_sales_share(
-        unallocated_amount,
-        _get_item_sales_map_for_rcp(year),
-    ).items():
-        result[item_key] = result.get(item_key, 0) + amount
 
     return result
 

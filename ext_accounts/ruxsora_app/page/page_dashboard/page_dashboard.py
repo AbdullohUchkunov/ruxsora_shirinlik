@@ -18,7 +18,7 @@ from ext_accounts.ruxsora_app.page.page_dashboard.data import (
 )
 from ext_accounts.ruxsora_app.dashboard_data import MONTH_LABELS, format_number
 
-_CACHE_PREFIX = "page_dashboard"
+_CACHE_PREFIX = "page_dashboard_v2"
 _CACHE_TTL_SECONDS = 300
 _DEFAULT_TABLE_LIMIT = 100
 
@@ -162,7 +162,7 @@ def get_client_kpi_data(year: str | None = None, month: str | None = None, limit
     _, _, selected_year, selected_month = _resolve_period(year, month)
     row_limit = int(limit or _DEFAULT_TABLE_LIMIT)
     return _cached(
-        f"client_kpi:v3:{row_limit}",
+        f"client_kpi:v6:{row_limit}",
         selected_year,
         selected_month,
         lambda: {
