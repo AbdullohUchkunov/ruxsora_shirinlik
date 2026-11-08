@@ -2,6 +2,17 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Kassa", {
+    onload: function(frm) {
+        // Kompaniya maydoni yashirin - yangi hujjatga default kompaniyani qo'yish
+        if (frm.is_new() && !frm.doc.company) {
+            let company = frappe.defaults.get_user_default("Company")
+                || frappe.defaults.get_global_default("company");
+            if (company) {
+                frm.doc.company = company;
+            }
+        }
+    },
+
     refresh: function(frm) {
         // Set expense account query
         frm.set_query("expense_account", function() {
@@ -17,22 +28,21 @@ frappe.ui.form.on("Kassa", {
         // Set mode_of_payment query based on transaction type
         frm.trigger("set_mode_of_payment_query");
 
-        // Update balance on refresh for all transaction types
-        if (frm.doc.mode_of_payment && frm.doc.company) {
-            frm.trigger("update_balance");
-        }
-
-        // Update balance_to on refresh for transfer/conversion
-        if (frm.doc.mode_of_payment_to && frm.doc.company) {
-            frm.trigger("update_balance_to");
-        }
-
         // Set mode_of_payment_to query based on transaction type and mode_of_payment
         frm.trigger("set_mode_of_payment_to_query");
 
-        // Fetch today's exchange rate for conversion
-        if (frm.doc.transaction_type === "Конвертация" && !frm.doc.exchange_rate) {
-            frm.trigger("fetch_exchange_rate");
+        // Submit/cancel qilingan hujjatda hech narsani o'zgartirmaymiz,
+        // aks holda forma "Not Saved" bo'lib, Update tugmasi chiqadi
+        if (frm.doc.docstatus === 0) {
+            if (frm.doc.mode_of_payment && frm.doc.company) {
+                frm.trigger("update_balance");
+            }
+            if (frm.doc.mode_of_payment_to && frm.doc.company) {
+                frm.trigger("update_balance_to");
+            }
+            if (frm.doc.transaction_type === "Конвертация" && !frm.doc.exchange_rate) {
+                frm.trigger("fetch_exchange_rate");
+            }
         }
 
         // Update balance label based on transaction type
@@ -95,7 +105,7 @@ frappe.ui.form.on("Kassa", {
                     company: frm.doc.company
                 },
                 callback: function(r) {
-                    frm.set_value("balance", r.message || 0);
+                    set_silently(frm, "balance", r.message || 0);
                 }
             });
         }
@@ -119,26 +129,13 @@ frappe.ui.form.on("Kassa", {
         frm.set_value("exchange_rate", 0);
         frm.set_value("debit_amount", 0);
         frm.set_value("credit_amount", 0);
+        frm.set_value("party_currency", "");
+        frm.set_value("party_exchange_rate", 0);
+        frm.set_value("party_amount", 0);
 
         // Set mode_of_payment and mode_of_payment_to queries
         frm.trigger("set_mode_of_payment_query");
         frm.trigger("set_mode_of_payment_to_query");
-
-        // For Перемещения, set default company if not set
-        if (frm.doc.transaction_type === "Перемещения" && !frm.doc.company) {
-            frappe.call({
-                method: "frappe.client.get_value",
-                args: {
-                    doctype: "Global Defaults",
-                    fieldname: "default_company"
-                },
-                callback: function(r) {
-                    if (r.message && r.message.default_company) {
-                        frm.set_value("company", r.message.default_company);
-                    }
-                }
-            });
-        }
 
         // Fetch exchange rate for conversion
         if (frm.doc.transaction_type === "Конвертация") {
@@ -153,24 +150,27 @@ frappe.ui.form.on("Kassa", {
         if (frm.doc.mode_of_payment_to && frm.doc.company) {
             // Get cash account for this mode of payment
             frappe.call({
-                method: "ext_accounts.ruxsora_app.doctype.kassa.kassa.get_cash_account",
+                method: "ext_accounts.ruxsora_app.doctype.kassa.kassa.get_cash_account_with_currency",
                 args: {
                     mode_of_payment: frm.doc.mode_of_payment_to,
                     company: frm.doc.company
                 },
                 callback: function(r) {
-                    if (r.message) {
-                        frm.set_value("cash_account_to", r.message);
+                    if (r.message && r.message.account) {
+                        frm.set_value("cash_account_to", r.message.account);
+                        frm.set_value("cash_account_to_currency", r.message.currency);
                         frm.trigger("update_balance_to");
                     } else {
                         frappe.msgprint(__("Для данного способа оплаты не настроен счет кассы для компании {0}", [frm.doc.company]));
                         frm.set_value("cash_account_to", "");
+                        frm.set_value("cash_account_to_currency", "");
                         frm.set_value("balance_to", 0);
                     }
                 }
             });
         } else {
             frm.set_value("cash_account_to", "");
+            frm.set_value("cash_account_to_currency", "");
             frm.set_value("balance_to", 0);
         }
     },
@@ -184,7 +184,7 @@ frappe.ui.form.on("Kassa", {
                     company: frm.doc.company
                 },
                 callback: function(r) {
-                    frm.set_value("balance_to", r.message || 0);
+                    set_silently(frm, "balance_to", r.message || 0);
                 }
             });
         }
@@ -289,6 +289,8 @@ frappe.ui.form.on("Kassa", {
         frm.set_value("expense_account", "");
         frm.set_value("party_name", "");
         frm.set_value("expense_account_name", "");
+        frm.set_value("party_currency", "");
+        frm.set_value("party_amount", 0);
 
         // Set mandatory based on party type
         if (frm.doc.party_type === "Расходы") {
@@ -340,6 +342,7 @@ frappe.ui.form.on("Kassa", {
         } else {
             frm.set_value("party_name", "");
             frm.set_value("party_currency", "");
+            frm.set_value("party_amount", 0);
         }
     },
 
@@ -396,6 +399,12 @@ frappe.ui.form.on("Kassa", {
         frm.set_value("party_amount", party_amount);
     }
 });
+
+// Faqat ko'rsatish uchun qiymat qo'yish: formani "o'zgargan" (dirty) qilmaydi
+function set_silently(frm, fieldname, value) {
+    frm.doc[fieldname] = value;
+    frm.refresh_field(fieldname);
+}
 
 function is_cross_currency(frm) {
     return in_list(["Приход", "Расход"], frm.doc.transaction_type)

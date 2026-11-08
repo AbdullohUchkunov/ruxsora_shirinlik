@@ -7,3 +7,4 @@ ext_accounts.patches.add_rashody_party_type
 ext_accounts.patches.add_expense_account_field
 ext_accounts.patches.create_rashody_records
 ext_accounts.patches.add_rashody_name_field
+ext_accounts.patches.set_kassa_cash_account_to_currency

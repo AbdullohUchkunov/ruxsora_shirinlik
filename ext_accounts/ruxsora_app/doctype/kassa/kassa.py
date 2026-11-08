@@ -500,9 +500,11 @@ class Kassa(Document):
             frappe.msgprint(_("Journal Entry {0} отменен").format(je_name))
 
     def set_default_company(self):
-        """Set default company for Перемещения if not set"""
-        if self.transaction_type == "Перемещения" and not self.company:
-            default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+        """Kompaniya maydoni formada yashirin - har doim default kompaniyani qo'yish"""
+        if not self.company:
+            default_company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+                "Global Defaults", "default_company"
+            )
             if default_company:
                 self.company = default_company
             else:
@@ -525,6 +527,10 @@ class Kassa(Document):
         """Cash account valyutasini olish"""
         if self.cash_account:
             self.cash_account_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
+        if self.cash_account_to:
+            self.cash_account_to_currency = frappe.get_cached_value(
+                "Account", self.cash_account_to, "account_currency"
+            )
 
     def set_party_currency(self):
         """Party default valyutasini olish"""

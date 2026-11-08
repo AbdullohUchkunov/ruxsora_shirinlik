@@ -7,17 +7,18 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "company",
+  "cash_account",
+  "cash_account_currency",
   "date",
   "transaction_type",
-  "balance",
   "column_break_1",
   "mode_of_payment",
-  "cash_account_currency",
-  "company",
-  "mode_of_payment_to",
-  "cash_account",
-  "cash_account_to",
+  "balance",
   "section_break_transfer",
+  "mode_of_payment_to",
+  "cash_account_to",
+  "cash_account_to_currency",
   "column_break_transfer",
   "balance_to",
   "section_break_conversion",
@@ -34,8 +35,8 @@
   "expense_account",
   "expense_account_name",
   "section_break_amount",
-  "column_break_3",
   "amount",
+  "column_break_3",
   "party_exchange_rate",
   "party_amount",
   "section_break_details",
@@ -48,7 +49,34 @@
    "fieldtype": "Select",
    "label": "Series",
    "options": "KASSA-.YYYY.-",
-   "reqd": 1
+   "reqd": 1,
+   "hidden": 1,
+   "default": "KASSA-.YYYY.-"
+  },
+  {
+   "depends_on": "",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компания",
+   "options": "Company",
+   "mandatory_depends_on": "eval:doc.transaction_type !== 'Перемещения'",
+   "hidden": 1
+  },
+  {
+   "fieldname": "cash_account",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Cash Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && doc.mode_of_payment",
+   "fieldname": "cash_account_currency",
+   "fieldtype": "Data",
+   "label": "Валюта кассы",
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "default": "Today",
@@ -79,40 +107,25 @@
    "reqd": 1
   },
   {
-   "fieldname": "cash_account",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Cash Account",
-   "options": "Account",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && doc.mode_of_payment",
-   "fieldname": "cash_account_currency",
-   "fieldtype": "Data",
-   "label": "Валюта кассы",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.transaction_type !== 'Перемещения'",
-   "fieldname": "company",
-   "fieldtype": "Link",
-   "label": "Компания",
-   "options": "Company",
-   "mandatory_depends_on": "eval:doc.transaction_type !== 'Перемещения'"
+   "depends_on": "eval:doc.mode_of_payment",
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "label": "Остаток",
+   "read_only": 1,
+   "options": "cash_account_currency"
   },
   {
    "depends_on": "eval:in_list(['Перемещения', 'Конвертация'], doc.transaction_type)",
+   "fieldname": "section_break_transfer",
+   "fieldtype": "Section Break",
+   "label": "Куда"
+  },
+  {
    "fieldname": "mode_of_payment_to",
    "fieldtype": "Link",
    "label": "Способ оплаты (куда)",
-   "options": "Mode of Payment"
-  },
-  {
-   "depends_on": "eval:in_list(['Перемещения', 'Конвертация'], doc.transaction_type) && doc.mode_of_payment_to",
-   "fieldname": "section_break_transfer",
-   "fieldtype": "Section Break",
-   "label": "Остаток (куда)"
+   "options": "Mode of Payment",
+   "mandatory_depends_on": "eval:in_list(['Перемещения', 'Конвертация'], doc.transaction_type)"
   },
   {
    "fieldname": "cash_account_to",
@@ -123,15 +136,23 @@
    "read_only": 1
   },
   {
+   "fieldname": "cash_account_to_currency",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Валюта кассы (куда)",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_transfer",
-   "fieldtype": "Column Break",
-   "hidden": 1
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "balance_to",
    "fieldtype": "Currency",
    "label": "Остаток (куда)",
-   "read_only": 1
+   "read_only": 1,
+   "options": "cash_account_to_currency",
+   "depends_on": "eval:doc.mode_of_payment_to"
   },
   {
    "depends_on": "eval:doc.transaction_type === 'Конвертация'",
@@ -156,18 +177,21 @@
    "depends_on": "eval:doc.transaction_type === 'Конвертация'",
    "fieldname": "debit_amount",
    "fieldtype": "Currency",
-   "label": "Сумма расхода"
+   "label": "Сумма расхода",
+   "options": "cash_account_currency"
   },
   {
    "depends_on": "eval:doc.transaction_type === 'Конвертация'",
    "fieldname": "credit_amount",
    "fieldtype": "Currency",
-   "label": "Сумма прихода"
+   "label": "Сумма прихода",
+   "options": "cash_account_to_currency"
   },
   {
    "fieldname": "section_break_party",
    "fieldtype": "Section Break",
-   "label": "Контрагент"
+   "label": "Контрагент",
+   "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type)"
   },
   {
    "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type)",
@@ -187,14 +211,16 @@
    "fieldname": "party_name",
    "fieldtype": "Data",
    "label": "Имя контрагента",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "depends_on": "eval:doc.party && in_list(['Customer', 'Supplier'], doc.party_type)",
    "fieldname": "party_currency",
    "fieldtype": "Data",
    "label": "Валюта контрагента",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "column_break_2",
@@ -212,25 +238,14 @@
    "fieldname": "expense_account_name",
    "fieldtype": "Data",
    "label": "Название счета",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
-   "depends_on": "eval:doc.transaction_type !== 'Конвертация'",
+   "depends_on": "eval:doc.transaction_type && doc.transaction_type !== 'Конвертация'",
    "fieldname": "section_break_amount",
    "fieldtype": "Section Break",
    "label": "Сумма"
-  },
-  {
-   "depends_on": "eval:doc.transaction_type && doc.mode_of_payment",
-   "fieldname": "balance",
-   "fieldtype": "Currency",
-   "label": "Остаток",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.transaction_type !== 'Конвертация'",
-   "fieldname": "column_break_3",
-   "fieldtype": "Column Break"
   },
   {
    "depends_on": "eval:doc.transaction_type !== 'Конвертация'",
@@ -238,7 +253,12 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Сумма",
-   "mandatory_depends_on": "eval:doc.transaction_type !== 'Конвертация'"
+   "mandatory_depends_on": "eval:doc.transaction_type !== 'Конвертация'",
+   "options": "cash_account_currency"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
   },
   {
    "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && in_list(['Customer', 'Supplier'], doc.party_type) && doc.cash_account_currency && doc.party_currency && doc.cash_account_currency !== doc.party_currency",
@@ -253,12 +273,14 @@
    "fieldname": "party_amount",
    "fieldtype": "Currency",
    "label": "Сумма в валюте контрагента",
-   "read_only": 1
+   "read_only": 1,
+   "options": "party_currency"
   },
   {
    "fieldname": "section_break_details",
    "fieldtype": "Section Break",
-   "label": "Дополнительно"
+   "label": "",
+   "collapsible": 0
   },
   {
    "fieldname": "remarks",
@@ -278,7 +300,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-08 12:00:00.000000",
+ "modified": "2026-11-08 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "ruxsora_app",
  "name": "Kassa",
