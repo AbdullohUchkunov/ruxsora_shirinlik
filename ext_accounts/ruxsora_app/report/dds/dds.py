@@ -141,11 +141,13 @@ def get_cash_accounts(filters):
     if not accounts:
         return []
 
-    return frappe.get_all(
-        "Account",
-        filters={"name": ("in", accounts), "account_currency": "USD"},
-        pluck="name"
-    )
+    account_filters = {"name": ("in", accounts)}
+    if not filters.get("mode_of_payment"):
+        # To'lov usuli tanlanmasa - faqat USD kassalar (so'm va dollarni bitta qoldiqqa qo'shib bo'lmaydi).
+        # Tanlansa - uning hisobi valyutasidan qat'i nazar (Cash UZS, Bank (No ref) ham)
+        account_filters["account_currency"] = "USD"
+
+    return frappe.get_all("Account", filters=account_filters, pluck="name")
 
 
 def get_opening_balance(cash_accounts, filters):
