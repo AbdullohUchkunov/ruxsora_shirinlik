@@ -175,6 +175,12 @@ class Kassa(Document):
         if self.party_type in ["Customer", "Supplier"] and self.party_currency:
             cash_currency = self.party_currency
 
+        # Party Financial Defaults dagi hisob ustun turadi: Payment Entry hook
+        # (apply_party_defaults) baribir paid_from/paid_to ni shu hisobga almashtiradi
+        pfd_account = get_pfd_account(self.party_type, self.party, self.company)
+        if pfd_account:
+            return pfd_account
+
         if self.party_type == "Customer":
             # Receivable account - 1311 (UZS) yoki 1310 (USD)
             account_number = "1311" if cash_currency == "UZS" else "1310"
@@ -678,6 +684,19 @@ def get_cash_account_with_currency(mode_of_payment, company):
     return {"account": None, "currency": None}
 
 
+def get_pfd_account(party_type, party, company):
+    """Party Financial Defaults dan kontragent hisobini olish (Customer → debit_to, Supplier → credit_to)"""
+    if party_type not in ["Customer", "Supplier"] or not party or not company:
+        return None
+
+    field = "debit_to" if party_type == "Customer" else "credit_to"
+    return frappe.db.get_value(
+        "Party Financial Defaults",
+        {"party_type": party_type, "party": party, "company": company},
+        field,
+    )
+
+
 @frappe.whitelist()
 def get_party_currency(party_type, party, company):
     """Party uchun default currency olish"""
@@ -685,6 +704,13 @@ def get_party_currency(party_type, party, company):
         return None
 
     currency = None
+
+    # Party Financial Defaults birinchi: Payment Entry hisobi aynan shundan olinadi
+    pfd_account = get_pfd_account(party_type, party, company)
+    if pfd_account:
+        currency = frappe.get_cached_value("Account", pfd_account, "account_currency")
+        if currency:
+            return currency
 
     # Get default currency from Party Account or Party itself
     if party_type == "Customer":
