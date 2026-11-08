@@ -18,7 +18,7 @@ class Kassa(Document):
         self.validate_transfer()
         self.validate_conversion()
         self.validate_amount()
-        self.validate_currency()
+        self.set_party_amount()
 
     def on_submit(self):
         """Submit bo'lganda Payment Entry yoki Journal Entry yaratish"""
@@ -53,8 +53,31 @@ class Kassa(Document):
         # Set accounts
         pe.paid_from = self.get_paid_from_account(payment_type)
         pe.paid_to = self.get_paid_to_account(payment_type)
-        pe.paid_amount = flt(self.amount)
-        pe.received_amount = flt(self.amount)
+
+        cash_amount = flt(self.amount)
+
+        if self.is_cross_currency():
+            # Kassa valyutasi (masalan UZS) va kontragent hisobi valyutasi (masalan USD) har xil:
+            # kassa tomoniga kassa summasi, qarzdorlik tomoniga kurs bo'yicha hisoblangan summa yoziladi
+            party_amount = flt(self.party_amount)
+            cash_rate = self.get_rate_to_company_currency(self.cash_account_currency)
+            party_rate = self.get_rate_to_company_currency(self.party_currency)
+
+            if payment_type == "Receive":
+                # paid_from = kontragent hisobi, paid_to = kassa
+                pe.paid_amount = party_amount
+                pe.received_amount = cash_amount
+                pe.source_exchange_rate = party_rate
+                pe.target_exchange_rate = cash_rate
+            else:
+                # paid_from = kassa, paid_to = kontragent hisobi
+                pe.paid_amount = cash_amount
+                pe.received_amount = party_amount
+                pe.source_exchange_rate = cash_rate
+                pe.target_exchange_rate = party_rate
+        else:
+            pe.paid_amount = cash_amount
+            pe.received_amount = cash_amount
 
         # Set reference to Kassa
         pe.reference_no = self.name
@@ -63,6 +86,12 @@ class Kassa(Document):
 
         pe.flags.ignore_permissions = True
         pe.insert()
+
+        # Kurs yaxlitlashidan qolgan tiyin farqini kurs farqi hisobiga yozish
+        if self.is_cross_currency() and flt(pe.difference_amount):
+            self.add_exchange_difference_deduction(pe)
+            pe.save()
+
         pe.submit()
 
         frappe.msgprint(_("Payment Entry {0} создан").format(
@@ -87,15 +116,64 @@ class Kassa(Document):
             # Расход - receivable/payable account (cash account valyutasiga mos)
             return self.get_party_account_by_currency()
 
-    def get_party_account_by_currency(self):
-        """Cash account valyutasiga mos party accountni olish
+    def is_cross_currency(self):
+        """Kassa valyutasi va kontragent valyutasi har xilmi (UZS kassa -> USD qarzdorlik va h.k.)"""
+        return bool(
+            self.transaction_type in ["Приход", "Расход"]
+            and self.party_type in ["Customer", "Supplier"]
+            and self.cash_account_currency
+            and self.party_currency
+            and self.cash_account_currency != self.party_currency
+        )
 
-        UZS cash account → 1311 (receivable) yoki 2111 (payable)
-        USD cash account → 1310 (receivable) yoki 2110 (payable)
+    def get_rate_to_company_currency(self, currency):
+        """1 [currency] = X [company currency] (ERPNext exchange rate formati)
+
+        party_exchange_rate maydoni "1 USD = N UZS" ko'rinishida saqlanadi.
+        """
+        company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+        rate = flt(self.party_exchange_rate)
+
+        if currency == company_currency:
+            return 1
+        if currency == "UZS" and company_currency == "USD":
+            return flt(1 / rate, 9)
+        if currency == "USD" and company_currency == "UZS":
+            return rate
+
+        frappe.throw(_("Неподдерживаемая валюта {0}").format(currency))
+
+    def add_exchange_difference_deduction(self, pe):
+        """Yaxlitlash farqini Exchange Gain/Loss hisobiga yozish"""
+        exchange_account = frappe.get_cached_value("Company", self.company, "exchange_gain_loss_account")
+        cost_center = frappe.get_cached_value("Company", self.company, "cost_center")
+
+        if not exchange_account:
+            frappe.throw(
+                _("Укажите Exchange Gain / Loss Account в настройках компании {0}").format(self.company)
+            )
+
+        pe.append("deductions", {
+            "account": exchange_account,
+            "cost_center": cost_center,
+            "amount": flt(pe.difference_amount),
+            "is_exchange_gain_loss": 1,
+        })
+
+    def get_party_account_by_currency(self):
+        """Kontragent valyutasiga mos party accountni olish
+
+        UZS → 1311 (receivable) yoki 2111 (payable)
+        USD → 1310 (receivable) yoki 2110 (payable)
+
+        Kontragent valyutasi kassa valyutasidan farq qilsa ham (UZS kassa -> USD qarzdorlik),
+        qarzdorlik kontragentning o'z valyutasidagi hisobga yoziladi.
         """
         cash_currency = self.cash_account_currency or frappe.get_cached_value(
             "Account", self.cash_account, "account_currency"
         )
+        if self.party_type in ["Customer", "Supplier"] and self.party_currency:
+            cash_currency = self.party_currency
 
         if self.party_type == "Customer":
             # Receivable account - 1311 (UZS) yoki 1310 (USD)
@@ -537,23 +615,34 @@ class Kassa(Document):
                 alert=True
             )
 
-    def validate_currency(self):
-        """Cash account va Party valyutasi mos kelishini tekshirish"""
-        if self.transaction_type not in ["Приход", "Расход"]:
+    def set_party_amount(self):
+        """Kassa va kontragent valyutasi har xil bo'lsa, kontragent valyutasidagi summani kurs bo'yicha hisoblash
+
+        Masalan: Cash UZS dan 24 000 000 so'm, kurs 12 200 → USD qarzdorlikka 1 967.21 USD
+        """
+        if not self.is_cross_currency():
+            self.party_amount = 0
             return
 
-        if self.party_type not in ["Customer", "Supplier"]:
-            return
-
-        if not self.cash_account_currency or not self.party_currency:
-            return
-
-        if self.cash_account_currency != self.party_currency:
+        if {self.cash_account_currency, self.party_currency} != {"UZS", "USD"}:
             frappe.throw(
-                _("Валюта кассы ({0}) не совпадает с валютой контрагента ({1}). Выберите соответствующий способ оплаты.").format(
+                _("Конвертация поддерживается только между UZS и USD ({0} → {1})").format(
                     self.cash_account_currency, self.party_currency
                 )
             )
+
+        if flt(self.party_exchange_rate) <= 0:
+            self.party_exchange_rate = get_exchange_rate("USD", "UZS", self.date)
+
+        if flt(self.party_exchange_rate) <= 0:
+            frappe.throw(_("Пожалуйста, укажите курс (USD к UZS)"))
+
+        if self.cash_account_currency == "UZS":
+            # UZS -> USD: Payment Entry dagi kurs bilan bir xil yaxlitlash (base summalar teng bo'lishi uchun)
+            self.party_amount = flt(flt(self.amount) * flt(1 / flt(self.party_exchange_rate), 9), 2)
+        else:
+            # USD -> UZS
+            self.party_amount = flt(flt(self.amount) * flt(self.party_exchange_rate), 2)
 
 
 @frappe.whitelist()

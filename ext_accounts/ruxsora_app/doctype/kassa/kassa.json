@@ -36,6 +36,8 @@
   "section_break_amount",
   "column_break_3",
   "amount",
+  "party_exchange_rate",
+  "party_amount",
   "section_break_details",
   "remarks",
   "amended_from"
@@ -239,6 +241,21 @@
    "mandatory_depends_on": "eval:doc.transaction_type !== 'Конвертация'"
   },
   {
+   "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && in_list(['Customer', 'Supplier'], doc.party_type) && doc.cash_account_currency && doc.party_currency && doc.cash_account_currency !== doc.party_currency",
+   "description": "Сколько сумов за 1 USD",
+   "fieldname": "party_exchange_rate",
+   "fieldtype": "Float",
+   "label": "Курс (USD к UZS)",
+   "mandatory_depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && in_list(['Customer', 'Supplier'], doc.party_type) && doc.cash_account_currency && doc.party_currency && doc.cash_account_currency !== doc.party_currency"
+  },
+  {
+   "depends_on": "eval:in_list(['Приход', 'Расход'], doc.transaction_type) && in_list(['Customer', 'Supplier'], doc.party_type) && doc.cash_account_currency && doc.party_currency && doc.cash_account_currency !== doc.party_currency",
+   "fieldname": "party_amount",
+   "fieldtype": "Currency",
+   "label": "Сумма в валюте контрагента",
+   "read_only": 1
+  },
+  {
    "fieldname": "section_break_details",
    "fieldtype": "Section Break",
    "label": "Дополнительно"
@@ -261,7 +278,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-01-25 15:00:00.000000",
+ "modified": "2026-11-08 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "ruxsora_app",
  "name": "Kassa",

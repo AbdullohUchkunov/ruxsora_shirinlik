@@ -344,20 +344,66 @@ frappe.ui.form.on("Kassa", {
     },
 
     validate_currency: function(frm) {
-        // Validate that cash account currency matches party currency
-        if (frm.doc.cash_account_currency && frm.doc.party_currency) {
-            if (frm.doc.cash_account_currency !== frm.doc.party_currency) {
-                frappe.validated = false;
-                frappe.msgprint({
-                    title: __("Ошибка валюты"),
-                    indicator: "red",
-                    message: __("Валюта кассы ({0}) не совпадает с валютой контрагента ({1}). Выберите соответствующий способ оплаты.",
-                        [frm.doc.cash_account_currency, frm.doc.party_currency])
+        // Kassa va kontragent valyutasi har xil bo'lsa (UZS kassa -> USD qarzdorlik),
+        // kursni olib kelib, kontragent valyutasidagi summani hisoblaymiz
+        if (is_cross_currency(frm)) {
+            if (!flt(frm.doc.party_exchange_rate)) {
+                frappe.call({
+                    method: "ext_accounts.ruxsora_app.doctype.kassa.kassa.get_exchange_rate",
+                    args: {
+                        from_currency: "USD",
+                        to_currency: "UZS",
+                        date: frm.doc.date || frappe.datetime.get_today()
+                    },
+                    callback: function(r) {
+                        if (r.message) {
+                            frm.set_value("party_exchange_rate", r.message);
+                        }
+                        frm.trigger("calculate_party_amount");
+                    }
                 });
+            } else {
+                frm.trigger("calculate_party_amount");
             }
+        } else {
+            frm.set_value("party_amount", 0);
         }
+    },
+
+    amount: function(frm) {
+        frm.trigger("calculate_party_amount");
+    },
+
+    party_exchange_rate: function(frm) {
+        frm.trigger("calculate_party_amount");
+    },
+
+    calculate_party_amount: function(frm) {
+        if (!is_cross_currency(frm) || !flt(frm.doc.party_exchange_rate)) {
+            frm.set_value("party_amount", 0);
+            return;
+        }
+
+        let rate = flt(frm.doc.party_exchange_rate);
+        let party_amount = 0;
+        if (frm.doc.cash_account_currency === "UZS") {
+            // UZS -> USD (serverdagi hisob bilan bir xil yaxlitlash)
+            party_amount = flt(flt(frm.doc.amount) * flt(1 / rate, 9), 2);
+        } else {
+            // USD -> UZS
+            party_amount = flt(flt(frm.doc.amount) * rate, 2);
+        }
+        frm.set_value("party_amount", party_amount);
     }
 });
+
+function is_cross_currency(frm) {
+    return in_list(["Приход", "Расход"], frm.doc.transaction_type)
+        && in_list(["Customer", "Supplier"], frm.doc.party_type)
+        && frm.doc.cash_account_currency
+        && frm.doc.party_currency
+        && frm.doc.cash_account_currency !== frm.doc.party_currency;
+}
 
 function get_party_name_field(party_type) {
     const name_fields = {
