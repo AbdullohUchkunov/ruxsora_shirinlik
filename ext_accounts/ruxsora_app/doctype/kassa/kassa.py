@@ -555,6 +555,7 @@ class Kassa(Document):
             if self.party_type == "Расходы":
                 if not self.expense_account:
                     frappe.throw(_("Пожалуйста, выберите счет расходов"))
+                self.validate_indirect_expense_account()
                 self.party = None
             elif self.party_type == "Дивиденд":
                 self.party = None
@@ -563,6 +564,18 @@ class Kassa(Document):
                 if not self.party:
                     frappe.throw(_("Пожалуйста, выберите контрагента"))
                 self.expense_account = None
+
+    def validate_indirect_expense_account(self):
+        """Счет расходов faqat Indirect Expenses ichidan bo'lishi kerak"""
+        group = get_indirect_expense_group(self.company)
+        account = frappe.db.get_value("Account", self.expense_account, ["lft", "rgt", "is_group"], as_dict=True)
+
+        if not account or account.is_group or not (account.lft > group.lft and account.rgt < group.rgt):
+            frappe.throw(
+                _("Счет расходов {0} должен входить в группу {1}").format(
+                    frappe.bold(self.expense_account), frappe.bold(group.name)
+                )
+            )
 
     def validate_transfer(self):
         """Transfer validatsiyasi"""
@@ -775,25 +788,46 @@ def get_account_balance(account, company):
     return 0
 
 
+def get_indirect_expense_group(company):
+    """Kompaniyaning "Indirect Expenses" guruh hisobi (lft/rgt bilan)"""
+    for filters in ({"account_name": "Indirect Expenses"}, {"account_number": "5200"}):
+        group = frappe.db.get_value(
+            "Account",
+            {"company": company, "is_group": 1, "root_type": "Expense", **filters},
+            ["name", "lft", "rgt"],
+            as_dict=True,
+        )
+        if group:
+            return group
+
+    frappe.throw(_("Группа счетов Indirect Expenses не найдена для компании {0}").format(company))
+
+
 @frappe.whitelist()
 def get_expense_accounts(doctype, txt, searchfield, start, page_len, filters):
-    """Expense accountlarni olish"""
-    company = filters.get("company")
+    """Faqat Indirect Expenses ichidagi expense accountlarni olish"""
+    if isinstance(filters, str):
+        filters = frappe.parse_json(filters)
+    company = (filters or {}).get("company") or frappe.defaults.get_user_default("Company")
+    group = get_indirect_expense_group(company)
 
     return frappe.db.sql("""
         SELECT name, account_name
         FROM `tabAccount`
         WHERE company = %(company)s
-        AND root_type = 'Expense'
         AND is_group = 0
+        AND disabled = 0
+        AND lft > %(lft)s AND rgt < %(rgt)s
         AND (name LIKE %(txt)s OR account_name LIKE %(txt)s)
-        ORDER BY name
+        ORDER BY lft
         LIMIT %(start)s, %(page_len)s
     """, {
         "company": company,
+        "lft": group.lft,
+        "rgt": group.rgt,
         "txt": f"%{txt}%",
-        "start": start,
-        "page_len": page_len
+        "start": int(start),
+        "page_len": int(page_len)
     })
 
 

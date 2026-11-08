@@ -14,13 +14,12 @@ frappe.ui.form.on("Kassa", {
     },
 
     refresh: function(frm) {
-        // Set expense account query
+        // Счет расходов: faqat Indirect Expenses ichidagi hisoblar
         frm.set_query("expense_account", function() {
             return {
+                query: "ext_accounts.ruxsora_app.doctype.kassa.kassa.get_expense_accounts",
                 filters: {
-                    company: frm.doc.company,
-                    root_type: "Expense",
-                    is_group: 0
+                    company: frm.doc.company
                 }
             };
         });
