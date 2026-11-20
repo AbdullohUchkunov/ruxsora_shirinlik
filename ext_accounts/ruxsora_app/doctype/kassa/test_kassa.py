@@ -163,3 +163,95 @@ class TestIndirectExpenseGroup(FrappeTestCase):
 		base = dict(parent_account=self.group.name, company=self.company, root_type="Expense")
 		self.assertFalse(should_create_rashody(frappe._dict(base, is_group=1, disabled=0)))
 		self.assertFalse(should_create_rashody(frappe._dict(base, is_group=0, disabled=1)))
+
+
+class TestKassaJournalEntryDirection(FrappeTestCase):
+	"""Дивиденд / Расходы: Приход kassani debet, Расход kassani kredit qilishi kerak"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.company = _get_company()
+		cls.dividend_account = frappe.db.get_value(
+			"Account", {"company": cls.company, "account_number": "3200", "is_group": 0}, "name"
+		)
+		group = find_indirect_expense_group(cls.company)
+		cls.expense_account = group and frappe.db.get_value(
+			"Account",
+			{
+				"company": cls.company,
+				"is_group": 0,
+				"disabled": 0,
+				"lft": [">", group.lft],
+				"rgt": ["<", group.rgt],
+			},
+			"name",
+		)
+
+	def _submit(self, transaction_type, party_type, mode_of_payment, **extra):
+		from ext_accounts.ruxsora_app.doctype.kassa.kassa import get_cash_account
+
+		if not get_cash_account(mode_of_payment, self.company):
+			self.skipTest(f"{mode_of_payment} has no cash account")
+
+		kassa = frappe.get_doc(
+			{
+				"doctype": "Kassa",
+				"company": self.company,
+				"date": frappe.utils.today(),
+				"transaction_type": transaction_type,
+				"party_type": party_type,
+				"mode_of_payment": mode_of_payment,
+				"amount": 1000,
+				**extra,
+			}
+		).insert(ignore_permissions=True)
+		kassa.submit()
+
+		je = frappe.get_doc("Journal Entry", {"cheque_no": kassa.name, "docstatus": 1})
+		rows = {row.account: row for row in je.accounts}
+		return kassa, rows
+
+	def _assert_direction(self, kassa, rows, counter_account, cash_is_debit):
+		cash, counter = rows[kassa.cash_account], rows[counter_account]
+		if cash_is_debit:
+			self.assertEqual(cash.debit_in_account_currency, 1000)
+			self.assertGreater(counter.credit, 0)
+			self.assertEqual(cash.credit + counter.debit, 0)
+		else:
+			self.assertEqual(cash.credit_in_account_currency, 1000)
+			self.assertGreater(counter.debit, 0)
+			self.assertEqual(cash.debit + counter.credit, 0)
+		self.assertEqual(cash.debit + cash.credit, counter.debit + counter.credit)
+
+	def test_dividend_receipt_debits_cash(self):
+		if not self.dividend_account:
+			self.skipTest("3200 not found")
+		for mop in ("Cash USD", "Cash UZS"):
+			with self.subTest(mop=mop):
+				kassa, rows = self._submit("Приход", "Дивиденд", mop)
+				self._assert_direction(kassa, rows, self.dividend_account, cash_is_debit=True)
+
+	def test_dividend_payment_credits_cash(self):
+		if not self.dividend_account:
+			self.skipTest("3200 not found")
+		for mop in ("Cash USD", "Cash UZS"):
+			with self.subTest(mop=mop):
+				kassa, rows = self._submit("Расход", "Дивиденд", mop)
+				self._assert_direction(kassa, rows, self.dividend_account, cash_is_debit=False)
+
+	def test_expense_receipt_debits_cash(self):
+		if not self.expense_account:
+			self.skipTest("no Indirect Expenses ledger")
+		for mop in ("Cash USD", "Cash UZS"):
+			with self.subTest(mop=mop):
+				kassa, rows = self._submit("Приход", "Расходы", mop, expense_account=self.expense_account)
+				self._assert_direction(kassa, rows, self.expense_account, cash_is_debit=True)
+
+	def test_expense_payment_credits_cash(self):
+		if not self.expense_account:
+			self.skipTest("no Indirect Expenses ledger")
+		for mop in ("Cash USD", "Cash UZS"):
+			with self.subTest(mop=mop):
+				kassa, rows = self._submit("Расход", "Расходы", mop, expense_account=self.expense_account)
+				self._assert_direction(kassa, rows, self.expense_account, cash_is_debit=False)

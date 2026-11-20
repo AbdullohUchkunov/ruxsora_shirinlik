@@ -242,154 +242,100 @@ class Kassa(Document):
             )
 
     def create_dividend_journal_entry(self):
-        """Dividend uchun Journal Entry yaratish (3200 accountga)"""
-        # Get dividend account (3200)
-        dividend_account = frappe.db.get_value("Account",
-            {"company": self.company, "account_number": "3200", "is_group": 0}, "name")
+        """Dividend uchun Journal Entry (3200 hisobi)
 
+        Расход: Dt 3200 / Kt Kassa (dividend to'lash)
+        Приход: Dt Kassa / Kt 3200 (dividend qaytishi)
+        """
+        dividend_account = frappe.db.get_value(
+            "Account", {"company": self.company, "account_number": "3200", "is_group": 0}, "name"
+        )
         if not dividend_account:
             frappe.throw(_("Счет дивидендов (3200) не найден для компании {0}").format(self.company))
 
-        # Get cash account currency
-        cash_account_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
-        company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
-
-        je = frappe.new_doc("Journal Entry")
-        je.voucher_type = "Journal Entry"
-        je.posting_date = self.date
-        je.company = self.company
-        je.cheque_no = self.name  # For linking back to Kassa
-        je.cheque_date = self.date
-        je.user_remark = self.remarks or f"Dividend payment from {self.name}"
-
-        # Check if multicurrency needed (Cash UZS or Bank (No ref) are UZS accounts)
-        is_multicurrency = cash_account_currency != "USD" and company_currency == "USD"
-
-        if is_multicurrency:
-            je.multi_currency = 1
-            # Get exchange rate for the date
-            exchange_rate = get_exchange_rate("UZS", "USD", self.date)
-            if not exchange_rate or exchange_rate == 0:
-                exchange_rate = 1
-
-            # Credit cash account (UZS)
-            je.append("accounts", {
-                "account": self.cash_account,
-                "credit_in_account_currency": flt(self.amount),
-                "account_currency": cash_account_currency,
-                "exchange_rate": exchange_rate,
-                "credit": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount)
-            })
-
-            # Debit dividend account (company currency - USD)
-            je.append("accounts", {
-                "account": dividend_account,
-                "debit_in_account_currency": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount),
-                "account_currency": company_currency,
-                "exchange_rate": 1,
-                "debit": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount)
-            })
-        else:
-            # Simple journal entry (Cash USD)
-            # Credit cash account
-            je.append("accounts", {
-                "account": self.cash_account,
-                "credit_in_account_currency": flt(self.amount),
-                "credit": flt(self.amount)
-            })
-
-            # Debit dividend account
-            je.append("accounts", {
-                "account": dividend_account,
-                "debit_in_account_currency": flt(self.amount),
-                "debit": flt(self.amount)
-            })
-
-        je.flags.ignore_permissions = True
-        je.insert()
-        je.submit()
-
+        je = self.make_cash_journal_entry(dividend_account, remark_prefix="Dividend")
         frappe.msgprint(_("Journal Entry {0} для дивидендов создан").format(
             frappe.utils.get_link_to_form("Journal Entry", je.name)
         ))
 
     def create_expense_journal_entry(self):
-        """Расходы uchun Journal Entry yaratish"""
+        """Расходы uchun Journal Entry
+
+        Расход: Dt Xarajat / Kt Kassa
+        Приход: Dt Kassa / Kt Xarajat (xarajat qaytishi)
+        """
         if not self.expense_account:
             frappe.throw(_("Пожалуйста, выберите счет расходов"))
 
-        # Get cash account currency
-        cash_account_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
-        company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
-        expense_account_currency = frappe.get_cached_value("Account", self.expense_account, "account_currency") or company_currency
-
         # Expense Cost Center dan cost_center olish
         cost_center = frappe.db.get_value(
-            "Expense Cost Center",
-            {"expense_account": self.expense_account},
-            "cost_center"
+            "Expense Cost Center", {"expense_account": self.expense_account}, "cost_center"
         )
+
+        je = self.make_cash_journal_entry(self.expense_account, cost_center=cost_center, remark_prefix="Expense")
+        frappe.msgprint(_("Journal Entry {0} для расходов создан").format(
+            frappe.utils.get_link_to_form("Journal Entry", je.name)
+        ))
+
+    def make_cash_journal_entry(self, counter_account, cost_center=None, remark_prefix=""):
+        """Kassa <-> counter_account Journal Entry yaratish va submit qilish.
+
+        Yo'nalish transaction_type bo'yicha: Приход - kassa debet, Расход - kassa kredit.
+        Kassa valyutasi kompaniya valyutasidan farq qilsa (Cash UZS, Bank (No ref)),
+        multi-currency JE: counter hisob kompaniya valyutasida yoziladi.
+        """
+        cash_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
+        company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+        counter_currency = (
+            frappe.get_cached_value("Account", counter_account, "account_currency") or company_currency
+        )
+
+        is_receipt = self.transaction_type == "Приход"
+        cash_side, counter_side = ("debit", "credit") if is_receipt else ("credit", "debit")
+        amount = flt(self.amount)
 
         je = frappe.new_doc("Journal Entry")
         je.voucher_type = "Journal Entry"
         je.posting_date = self.date
         je.company = self.company
-        je.cheque_no = self.name  # For linking back to Kassa
+        je.cheque_no = self.name  # Kassa bilan bog'lash (cancel_linked_entries)
         je.cheque_date = self.date
-        je.user_remark = self.remarks or f"Expense payment from {self.name}"
+        direction = "receipt to" if is_receipt else "payment from"
+        je.user_remark = self.remarks or f"{remark_prefix} {direction} {self.name}"
 
-        # Check if multicurrency needed (Cash UZS or Bank (No ref) are UZS accounts)
-        is_multicurrency = cash_account_currency != company_currency
-
-        if is_multicurrency:
+        if cash_currency != company_currency:
             je.multi_currency = 1
-            # Get exchange rate for the date
-            exchange_rate = get_exchange_rate(cash_account_currency, company_currency, self.date)
-            if not exchange_rate or exchange_rate == 0:
-                exchange_rate = 1
+            rate = flt(get_exchange_rate(cash_currency, company_currency, self.date)) or 1
+            base_amount = flt(amount * rate, frappe.get_precision("Journal Entry Account", "debit"))
 
-            # Credit cash account (UZS)
-            je.append("accounts", {
-                "account": self.cash_account,
-                "credit_in_account_currency": flt(self.amount),
-                "account_currency": cash_account_currency,
-                "exchange_rate": exchange_rate,
-                "credit": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount)
-            })
-
-            # Debit expense account (company currency)
-            je.append("accounts", {
-                "account": self.expense_account,
-                "cost_center": cost_center,
-                "debit_in_account_currency": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount),
-                "account_currency": expense_account_currency,
+            cash_row = {
+                "account_currency": cash_currency,
+                "exchange_rate": rate,
+                f"{cash_side}_in_account_currency": amount,
+                cash_side: base_amount,
+            }
+            counter_row = {
+                "account_currency": counter_currency,
                 "exchange_rate": 1,
-                "debit": flt(self.amount) * exchange_rate if exchange_rate else flt(self.amount)
-            })
+                f"{counter_side}_in_account_currency": base_amount,
+                counter_side: base_amount,
+            }
         else:
-            # Simple journal entry (same currency)
-            # Credit cash account
-            je.append("accounts", {
-                "account": self.cash_account,
-                "credit_in_account_currency": flt(self.amount),
-                "credit": flt(self.amount)
-            })
+            cash_row = {f"{cash_side}_in_account_currency": amount, cash_side: amount}
+            counter_row = {f"{counter_side}_in_account_currency": amount, counter_side: amount}
 
-            # Debit expense account
-            je.append("accounts", {
-                "account": self.expense_account,
-                "cost_center": cost_center,
-                "debit_in_account_currency": flt(self.amount),
-                "debit": flt(self.amount)
-            })
+        cash_row["account"] = self.cash_account
+        counter_row["account"] = counter_account
+        if cost_center:
+            counter_row["cost_center"] = cost_center
+
+        je.append("accounts", cash_row)
+        je.append("accounts", counter_row)
 
         je.flags.ignore_permissions = True
         je.insert()
         je.submit()
-
-        frappe.msgprint(_("Journal Entry {0} для расходов создан").format(
-            frappe.utils.get_link_to_form("Journal Entry", je.name)
-        ))
+        return je
 
     def create_transfer_payment_entry(self):
         """Перемещения uchun Internal Transfer Payment Entry yaratish"""
