@@ -6,6 +6,8 @@ when accounts under 5200 are created/updated/deleted.
 import frappe
 from frappe import _
 
+from ext_accounts.ruxsora_app.doctype.kassa.kassa import is_under_indirect_expense_group
+
 
 def after_insert(doc, method=None):
     """
@@ -44,18 +46,16 @@ def should_create_rashody(account_doc):
     """
     Check if Rashody record should be created for this account.
     
-    Criteria:
-    - parent_account = "5200 - Indirect Expenses - R"
+    Criteria (Kassa'dagi "Счет расходов" filtri bilan bir xil):
+    - kompaniyaning Indirect Expenses (5200) guruhi ichida, istalgan chuqurlikda
     - is_group = 0 (ledger account)
     - root_type = "Expense"
     - disabled = 0
     """
-    return (
-        account_doc.parent_account == "5200 - Indirect Expenses - R"
-        and account_doc.is_group == 0
-        and account_doc.root_type == "Expense"
-        and account_doc.disabled == 0
-    )
+    if account_doc.is_group or account_doc.root_type != "Expense" or account_doc.disabled:
+        return False
+
+    return is_under_indirect_expense_group(account_doc.parent_account, account_doc.company)
 
 
 def create_rashody_record(account_doc):
@@ -68,7 +68,6 @@ def create_rashody_record(account_doc):
             "company": account_doc.company
         })
         rashody.insert(ignore_permissions=True)
-        frappe.db.commit()
         
         frappe.msgprint(
             _("Rashody record created for account {0}").format(account_doc.name),
@@ -86,6 +85,5 @@ def update_rashody_record(account_doc):
         rashody.account_name = account_doc.account_name
         rashody.company = account_doc.company
         rashody.save(ignore_permissions=True)
-        frappe.db.commit()
     except Exception as e:
         frappe.log_error(f"Failed to update Rashody for {account_doc.name}: {str(e)}")

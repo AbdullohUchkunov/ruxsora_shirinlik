@@ -259,10 +259,6 @@ doc_events = {
 
 # Overriding Methods
 # ------------------------------
-override_whitelisted_methods = {
-    "erpnext.accounts.doctype.payment_entry.payment_entry.get_party_type":
-        "ext_accounts.overrides.payment_entry_queries.get_party_type",
-}
 
 # override_doctype_js = {
 #     "erpnext.accounts.doctype.payment_entry.payment_entry": 

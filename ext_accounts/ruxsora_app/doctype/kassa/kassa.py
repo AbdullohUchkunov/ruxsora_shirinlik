@@ -6,6 +6,9 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, getdate
 
+# Перемещения uchun "куда" tomonda tanlash mumkin bo'lgan hisob turlari
+TRANSFER_ACCOUNT_TYPES = ("Cash", "Bank")
+
 
 class Kassa(Document):
     def validate(self):
@@ -239,8 +242,8 @@ class Kassa(Document):
             )
 
     def create_dividend_journal_entry(self):
-        """Dividend uchun Journal Entry yaratish (3400 accountga)"""
-        # Get dividend account (3400)
+        """Dividend uchun Journal Entry yaratish (3200 accountga)"""
+        # Get dividend account (3200)
         dividend_account = frappe.db.get_value("Account",
             {"company": self.company, "account_number": "3200", "is_group": 0}, "name")
 
@@ -517,7 +520,12 @@ class Kassa(Document):
             if cash_account:
                 self.cash_account = cash_account
 
-        # Set cash_account_to for transfer/conversion
+        # Перемещения: "куда" hisobi to'g'ridan-to'g'ri tanlanadi (Mode of Payment emas)
+        if self.transaction_type == "Перемещения":
+            self.mode_of_payment_to = None
+            return
+
+        # Конвертация: cash_account_to Mode of Payment (куда) dan olinadi
         if self.mode_of_payment_to and self.company:
             cash_account_to = get_cash_account(self.mode_of_payment_to, self.company)
             if cash_account_to:
@@ -578,22 +586,44 @@ class Kassa(Document):
             )
 
     def validate_transfer(self):
-        """Transfer validatsiyasi"""
-        if self.transaction_type == "Перемещения":
-            if not self.mode_of_payment_to:
-                frappe.throw(_("Пожалуйста, выберите способ оплаты (куда)"))
+        """Перемещения: "куда" hisobi kassa/bank hisobi, manba bilan bir xil valyutada bo'lishi kerak"""
+        if self.transaction_type != "Перемещения":
+            return
 
-            if self.mode_of_payment == self.mode_of_payment_to:
-                frappe.throw(_("Способ оплаты источника и назначения должны отличаться"))
+        if not self.cash_account:
+            frappe.throw(_("Для способа оплаты {0} не настроен счет кассы").format(self.mode_of_payment))
 
-            # Validate allowed combinations
-            # Only Cash UZS <-> Bank (No ref), no Cash USD for Перемещения
-            allowed_combinations = [
-                ("Cash UZS", "Bank (No ref)"),
-                ("Bank (No ref)", "Cash UZS")
-            ]
-            if (self.mode_of_payment, self.mode_of_payment_to) not in allowed_combinations:
-                frappe.throw(_("Для перемещения разрешены только комбинации: Cash UZS <-> Bank (No ref)"))
+        if not self.cash_account_to:
+            frappe.throw(_("Пожалуйста, выберите счет (куда)"))
+
+        if self.cash_account == self.cash_account_to:
+            frappe.throw(_("Счет источника и назначения должны отличаться"))
+
+        target = frappe.db.get_value(
+            "Account",
+            self.cash_account_to,
+            ["company", "account_type", "account_currency", "is_group", "disabled"],
+            as_dict=True,
+        )
+        if (
+            not target
+            or target.company != self.company
+            or target.is_group
+            or target.disabled
+            or target.account_type not in TRANSFER_ACCOUNT_TYPES
+        ):
+            frappe.throw(
+                _("Счет {0} должен быть активным счетом кассы или банка компании {1}").format(
+                    frappe.bold(self.cash_account_to), self.company
+                )
+            )
+
+        if target.account_currency != self.cash_account_currency:
+            frappe.throw(
+                _("Валюта счета (куда) {0} должна совпадать с валютой счета (откуда) {1}").format(
+                    target.account_currency, self.cash_account_currency
+                )
+            )
 
     def validate_conversion(self):
         """Conversion validatsiyasi"""
@@ -788,8 +818,8 @@ def get_account_balance(account, company):
     return 0
 
 
-def get_indirect_expense_group(company):
-    """Kompaniyaning "Indirect Expenses" guruh hisobi (lft/rgt bilan)"""
+def find_indirect_expense_group(company):
+    """Kompaniyaning "Indirect Expenses" guruh hisobi (lft/rgt bilan) yoki None"""
     for filters in ({"account_name": "Indirect Expenses"}, {"account_number": "5200"}):
         group = frappe.db.get_value(
             "Account",
@@ -799,8 +829,67 @@ def get_indirect_expense_group(company):
         )
         if group:
             return group
+    return None
 
-    frappe.throw(_("Группа счетов Indirect Expenses не найдена для компании {0}").format(company))
+
+def get_indirect_expense_group(company):
+    """Kompaniyaning "Indirect Expenses" guruh hisobi; topilmasa xato"""
+    group = find_indirect_expense_group(company)
+    if not group:
+        frappe.throw(_("Группа счетов Indirect Expenses не найдена для компании {0}").format(company))
+    return group
+
+
+def is_under_indirect_expense_group(parent_account, company):
+    """parent_account Indirect Expenses guruhining o'zi yoki uning ichidagi guruhmi.
+
+    Hisobning o'z lft/rgt'i emas, ota-hisobniki tekshiriladi: after_insert paytida
+    yangi hisobning nested set qiymatlari hali hisoblanmagan bo'lishi mumkin.
+    """
+    if not parent_account or not company:
+        return False
+
+    group = find_indirect_expense_group(company)
+    if not group:
+        return False
+
+    parent = frappe.db.get_value("Account", parent_account, ["lft", "rgt"], as_dict=True)
+    return bool(parent and parent.lft >= group.lft and parent.rgt <= group.rgt)
+
+
+@frappe.whitelist()
+def get_transfer_accounts(doctype, txt, searchfield, start, page_len, filters):
+    """Перемещения (куда): manba hisobi bilan bir xil valyutadagi barcha kassa/bank hisoblari"""
+    if isinstance(filters, str):
+        filters = frappe.parse_json(filters)
+    filters = filters or {}
+
+    company = filters.get("company") or frappe.defaults.get_user_default("Company")
+    currency = filters.get("currency")
+    if not company or not currency:
+        return []
+
+    return frappe.db.sql("""
+        SELECT name, account_currency
+        FROM `tabAccount`
+        WHERE company = %(company)s
+        AND account_currency = %(currency)s
+        AND account_type IN %(account_types)s
+        AND is_group = 0
+        AND disabled = 0
+        AND name != %(exclude)s
+        AND (name LIKE %(txt)s OR account_name LIKE %(txt)s)
+        ORDER BY lft
+        LIMIT %(start)s, %(page_len)s
+    """, {
+        "company": company,
+        "currency": currency,
+        "account_types": TRANSFER_ACCOUNT_TYPES,
+        "exclude": filters.get("exclude_account") or "",
+        "txt": f"%{txt}%",
+        "start": int(start),
+        "page_len": int(page_len)
+    })
 
 
 @frappe.whitelist()
@@ -865,6 +954,7 @@ def get_exchange_rate(from_currency, to_currency, date=None):
     )
 
     if reverse_rate and flt(reverse_rate) > 0:
-        return flt(1 / flt(reverse_rate), 4)
+        # 9 xona: 1/12200 = 0.000081967; 4 xonada 0.0001 bo'lib ~22% xato beradi
+        return flt(1 / flt(reverse_rate), 9)
 
     return 0

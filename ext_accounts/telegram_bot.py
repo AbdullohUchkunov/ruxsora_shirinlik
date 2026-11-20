@@ -1,6 +1,8 @@
 # Copyright (c) 2025, abdulloh and contributors
 # For license information, please see license.txt
 
+import hashlib
+import hmac
 import json
 import requests
 import frappe
@@ -296,9 +298,31 @@ def handle_akt_sverka(chat_id, callback_query_id, period_code, party_type, party
 
 # ─── Webhook handler ─────────────────────────────────────────────────────────
 
+def get_webhook_secret(token=None):
+    """Webhook secret_token: bot tokenidan hosil qilinadi (alohida saqlash shart emas).
+
+    Telegram faqat [A-Za-z0-9_-] belgilarni, 1-256 uzunlikda qabul qiladi.
+    """
+    token = token or get_bot_token()
+    if not token:
+        return None
+    return hashlib.sha256(f"ext_accounts-telegram-webhook:{token}".encode()).hexdigest()
+
+
+def is_valid_webhook_request():
+    """So'rov haqiqatan Telegram'dan kelganini secret_token sarlavhasi orqali tekshirish"""
+    expected = get_webhook_secret()
+    received = frappe.get_request_header("X-Telegram-Bot-Api-Secret-Token") or ""
+    return bool(expected) and hmac.compare_digest(received, expected)
+
+
 @frappe.whitelist(allow_guest=True)
 def handle_update():
     """Telegram webhook endpoint"""
+    if not is_valid_webhook_request():
+        frappe.local.response.http_status_code = 403
+        return {"ok": False}
+
     try:
         data = frappe.request.get_json(force=True)
         if not data:
@@ -422,7 +446,7 @@ def set_webhook(webhook_url=None):
     try:
         r = requests.post(
             f"https://api.telegram.org/bot{token}/setWebhook",
-            json={"url": webhook_url}, timeout=10
+            json={"url": webhook_url, "secret_token": get_webhook_secret(token)}, timeout=10
         )
         result = r.json()
         if result.get("ok"):

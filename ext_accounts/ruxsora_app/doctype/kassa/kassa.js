@@ -30,6 +30,18 @@ frappe.ui.form.on("Kassa", {
         // Set mode_of_payment_to query based on transaction type and mode_of_payment
         frm.trigger("set_mode_of_payment_to_query");
 
+        // Перемещения (куда): "откуда" hisobi valyutasidagi barcha kassa/bank hisoblari
+        frm.set_query("cash_account_to", function() {
+            return {
+                query: "ext_accounts.ruxsora_app.doctype.kassa.kassa.get_transfer_accounts",
+                filters: {
+                    company: frm.doc.company,
+                    currency: frm.doc.cash_account_currency,
+                    exclude_account: frm.doc.cash_account
+                }
+            };
+        });
+
         // Submit/cancel qilingan hujjatda hech narsani o'zgartirmaymiz,
         // aks holda forma "Not Saved" bo'lib, Update tugmasi chiqadi
         if (frm.doc.docstatus === 0) {
@@ -174,6 +186,21 @@ frappe.ui.form.on("Kassa", {
         }
     },
 
+    cash_account_to: function(frm) {
+        // Конвертация da bu hisob mode_of_payment_to orqali to'ldiriladi (o'sha handler balansni oladi)
+        if (frm.doc.transaction_type !== "Перемещения") return;
+
+        if (frm.doc.cash_account_to) {
+            frappe.db.get_value("Account", frm.doc.cash_account_to, "account_currency", function(r) {
+                frm.set_value("cash_account_to_currency", (r && r.account_currency) || "");
+                frm.trigger("update_balance_to");
+            });
+        } else {
+            frm.set_value("cash_account_to_currency", "");
+            frm.set_value("balance_to", 0);
+        }
+    },
+
     update_balance_to: function(frm) {
         if (frm.doc.cash_account_to && frm.doc.company) {
             frappe.call({
@@ -190,15 +217,10 @@ frappe.ui.form.on("Kassa", {
     },
 
     set_mode_of_payment_query: function(frm) {
+        // Barcha turlar uchun istalgan способ оплаты; Перемещения da "куда" tomoni
+        // tanlangan hisob valyutasi bo'yicha filtrlanadi (cash_account_to query)
         frm.set_query("mode_of_payment", function() {
-            let filters = {};
-
-            if (frm.doc.transaction_type === "Перемещения") {
-                // For transfer: only Cash UZS and Bank (No ref), no Cash USD
-                filters.name = ["in", ["Cash UZS", "Bank (No ref)"]];
-            }
-
-            return { filters: filters };
+            return { filters: {} };
         });
     },
 
@@ -206,15 +228,7 @@ frappe.ui.form.on("Kassa", {
         frm.set_query("mode_of_payment_to", function() {
             let filters = {};
 
-            if (frm.doc.transaction_type === "Перемещения") {
-                // For transfer: only between Cash UZS and Bank (No ref)
-                // No Cash USD for Перемещения
-                if (frm.doc.mode_of_payment === "Cash UZS") {
-                    filters.name = "Bank (No ref)";
-                } else if (frm.doc.mode_of_payment === "Bank (No ref)") {
-                    filters.name = "Cash UZS";
-                }
-            } else if (frm.doc.transaction_type === "Конвертация") {
+            if (frm.doc.transaction_type === "Конвертация") {
                 // For conversion: Cash USD <-> Cash UZS or Bank (No ref)
                 if (frm.doc.mode_of_payment === "Cash USD") {
                     filters.name = ["in", ["Cash UZS", "Bank (No ref)"]];
